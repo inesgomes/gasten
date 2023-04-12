@@ -1,5 +1,5 @@
 import argparse
-from .utils import create_and_store_z, gen_seed, set_seed
+from utils import create_and_store_z, gen_seed, set_seed
 
 
 if __name__ == '__main__':
@@ -8,7 +8,7 @@ if __name__ == '__main__':
     parser.add_argument("--nz", dest="nz", required=True, type=int)
     parser.add_argument("--z-dim", dest="z_dim", required=True, type=int)
     parser.add_argument("--out-dir", dest="out_dir",
-                        required=True, help="Config file")
+                        help="Config file", default="data/z")
 
     args = parser.parse_args()
     seed = gen_seed() if args.seed is None else args.seed

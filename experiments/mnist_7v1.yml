@@ -1,14 +1,14 @@
 project: "stg-final"
 name: "mnist-7v1"
-out-dir: "/media/TOSHIBA6T/LCUNHA/out"
-data-dir: "/home/lcunha/data"
-test-noise: "/home/lcunha/data/z/z_2000_64"
-fixed-noise: 200
+out-dir: "out"
+data-dir: "data"
+test-noise: "data/z/z_2000_64"
+fixed-noise: 2000
 
-device: cuda:0
+device: cpu
 num-workers: 6
 
-fid-stats-path: "/home/lcunha/data/fid-stats/stats.inception.mnist.7v1.npz"
+fid-stats-path: "data/fid-stats/stats.inception.mnist.7v1.npz"
 
 num-runs: 3
 
@@ -53,9 +53,9 @@ train:
     batch-size: 64
     disc-iters: 1
     classifier:
-      - "/media/TOSHIBA6T/LCUNHA/classifiers/mnist.7v1/cnn-1-1.25442"
-      - "/media/TOSHIBA6T/LCUNHA/classifiers/mnist.7v1/cnn-2-1.7501"
-      - "/media/TOSHIBA6T/LCUNHA/classifiers/mnist.7v1/cnn-4-1.21139"
+      - "models/mnist.7v1/cnn-1-1.95718"
+      - "models/mnist.7v1/cnn-2-1.64678"
+      - "models/mnist.7v1/cnn-4-1.70628"
     weight:
       - 0
       - mgda

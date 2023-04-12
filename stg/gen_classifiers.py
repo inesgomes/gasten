@@ -5,9 +5,9 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('--data-dir', dest='dataroot',
-                    default='/home/lcunha/data', help='Dir with dataset')
+                    default='data', help='Dir with dataset')
 parser.add_argument('--out-dir', dest='out_dir',
-                    default='/media/TOSHIBA6T/LCUNHA/classifiers', help='Path to generated files')
+                    default='models', help='Path to generated files')
 parser.add_argument('--dataset', dest='dataset',
                     default='mnist', help='Dataset (mnist or fashion-mnist or cifar10)')
 parser.add_argument('--n-classes', dest='n_classes',

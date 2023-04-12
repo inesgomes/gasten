@@ -4,12 +4,12 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('--data', dest='dataroot',
-                    default='/home/lcunha/data', help='Dir with dataset')
+                    default='data', help='Dir with dataset')
 parser.add_argument('--dataset', dest='dataset',
                     default='mnist', help='Dataset (mnist or fashion-mnist or cifar10)')
 parser.add_argument('--n-classes', dest='n_classes',
                     default=10, help='Number of classes in dataset')
-parser.add_argument('--device', type=str, default='cuda:0',
+parser.add_argument('--device', type=str, default='cpu',
                     help='Device to use. Like cuda, cuda:0 or cpu')
 
 
@@ -20,6 +20,7 @@ def main():
     n_classes = args.n_classes
 
     for neg_class, pos_class in itertools.combinations(range(n_classes), 2):
+        print(f"{pos_class}vs{neg_class}")
         proc = subprocess.run(['python', '-m', 'stg.metrics.fid',
                                '--data', args.dataroot,
                                '--dataset', args.dataset,

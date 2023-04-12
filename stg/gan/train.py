@@ -46,7 +46,7 @@ def evaluate(G, fid_metrics, stats_logger, batch_size, test_noise, device, c_out
 
     if c_out_hist is not None:
         c_out_hist.plot()
-        stats_logger.log_plot('histogram')
+        # stats_logger.log_plot('histogram') # TODO corrigir erro
         c_out_hist.reset()
         plt.clf()
 

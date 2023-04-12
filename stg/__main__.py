@@ -81,7 +81,7 @@ def train_modified_gan(config, dataset, cp_dir, gan_path, test_noise,
     set_seed(seed)
     wandb.init(project=config["project"],
                group=config["name"],
-               entity="luispcunha",
+               entity="gomes-inesisabel",
                job_type='step-2',
                name=f'{run_id}-{run_name}',
                config={
@@ -223,7 +223,7 @@ def main():
 
             wandb.init(project=config["project"],
                        group=config["name"],
-                       entity="luispcunha",
+                       entity="gomes-inesisabel",
                        job_type='step-1',
                        name=f'{run_id}-step-1',
                        config={
@@ -252,7 +252,7 @@ def main():
             original_gan_cp_dir = config['train']['step-1']
             step_1_train_state = load_gan_train_state(original_gan_cp_dir)
 
-        print(" > Start step 2 (gan with modified loss")
+        print(" > Start step 2 (gan with modified loss)")
 
         if 'step-1-epochs' not in config['train']['step-2']:
             step_1_epochs = ["best"]
