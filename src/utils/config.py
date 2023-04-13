@@ -76,9 +76,6 @@ config_schema = Schema({
     }
 })
 
-def create_path(relative_path:str) -> str:
-    return os.environ['FILESDIR'] + '/' + relative_path
-
 def read_config(path):
     with open(path, 'r') as file:
         config = yaml.safe_load(file)
