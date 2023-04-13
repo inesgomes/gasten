@@ -22,7 +22,7 @@ pip3 install -r requirements.txt
 
 Create .env file with the following information
 ```yaml
-CUDA_VISIBLE_DEVICES=1
+CUDA_VISIBLE_DEVICES=0
 FILESDIR=<file directory>
 ENTITY=<wandb entity to track experiments>
 ```

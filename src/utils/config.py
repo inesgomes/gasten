@@ -76,11 +76,16 @@ config_schema = Schema({
     }
 })
 
+def create_path(relative_path:str) -> str:
+    return os.environ['FILESDIR'] + '/' + relative_path
 
 def read_config(path):
     with open(path, 'r') as file:
         config = yaml.safe_load(file)
-
+        # add paths
+        for rel_path in ['out-dir', 'data-dir', 'fid-stats-path', 'test-noise'] :
+            config[rel_path] = os.environ['FILESDIR'] + '/' + config[rel_path]
+        config['train']['step-2']['classifier'] = [(os.environ['FILESDIR'] + '/' + rel_path) for rel_path in config['train']['step-2']['classifier']]
     try:
         config_schema.validate(config)
     except SchemaError as se:

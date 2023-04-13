@@ -126,7 +126,6 @@ def compute_dataset_fid_stats(dset, get_feature_map_fn, dims, batch_size=64, dev
 def main():
     load_dotenv()
     args = parse_args()
-
     config = read_config(args.config_path)
     print("Loaded experiment configuration from {}".format(args.config_path))
 

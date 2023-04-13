@@ -46,7 +46,7 @@ def evaluate(G, fid_metrics, stats_logger, batch_size, test_noise, device, c_out
 
     if c_out_hist is not None:
         c_out_hist.plot()
-        stats_logger.log_plot('histogram') # TODO verify if we still have this error
+        # stats_logger.log_plot('histogram') # why do we have this error??
         c_out_hist.reset()
         plt.clf()
 
