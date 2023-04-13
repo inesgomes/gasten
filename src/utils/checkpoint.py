@@ -3,9 +3,9 @@ import json
 import torch
 import torchvision.utils as vutils
 import torch.optim as optim
-from stg.classifier import construct_classifier
-from stg.gan import construct_gan
-from stg.gan.architectures.dcgan import Generator, Discriminator
+from src.classifier import construct_classifier
+from src.gan import construct_gan
+from src.gan.architectures.dcgan import Generator, Discriminator
 import matplotlib.pyplot as plt
 
 

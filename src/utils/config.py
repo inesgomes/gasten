@@ -1,7 +1,7 @@
 import os
 import yaml
-from stg.datasets import valid_dataset
-from stg.gan.loss import valid_loss
+from src.datasets import valid_dataset
+from src.gan.loss import valid_loss
 from schema import Schema, SchemaError, Optional, And, Or
 
 

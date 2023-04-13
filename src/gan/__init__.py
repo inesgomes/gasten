@@ -1,6 +1,6 @@
-from stg.gan.architectures.dcgan import Generator as DC_G, Discriminator as DC_D
-from stg.gan.architectures.resnet import Generator as RN_G, Discriminator as RN_D
-from stg.gan.loss import NS_DiscriminatorLoss, NS_GeneratorLoss, W_GeneratorLoss, WGP_DiscriminatorLoss
+from src.gan.architectures.dcgan import Generator as DC_G, Discriminator as DC_D
+from src.gan.architectures.resnet import Generator as RN_G, Discriminator as RN_D
+from src.gan.loss import NS_DiscriminatorLoss, NS_GeneratorLoss, W_GeneratorLoss, WGP_DiscriminatorLoss
 
 
 def construct_gan(config, img_size, device):

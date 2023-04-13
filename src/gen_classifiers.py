@@ -1,13 +1,13 @@
-from curses.ascii import isdigit
 import itertools
 import subprocess
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import os
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('--data-dir', dest='dataroot',
-                    default='/home/lcunha/data', help='Dir with dataset')
+                    default=f"{os.environ['FILESDIR']}/data", help='Dir with dataset')
 parser.add_argument('--out-dir', dest='out_dir',
-                    default='/media/TOSHIBA6T/LCUNHA/classifiers', help='Path to generated files')
+                    default=f"{os.environ['FILESDIR']}/models", help='Path to generated files')
 parser.add_argument('--dataset', dest='dataset',
                     default='mnist', help='Dataset (mnist or fashion-mnist or cifar10)')
 parser.add_argument('--n-classes', dest='n_classes',
@@ -68,7 +68,7 @@ def main():
                                    "--nf", nf,
                                    "--epochs", epochs,
                                    "--batch-size", str(args.batch_size),
-                                   "--lr", str(args.lr)],
+                                   "--lr", str(args.lr)], # type: ignore
                                   capture_output=True)
             for line in proc.stdout.split(b'\n')[-4:-1]:
                 print(line.decode())

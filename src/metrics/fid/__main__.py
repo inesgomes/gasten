@@ -4,16 +4,16 @@ import numpy as np
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from dotenv import load_dotenv
 
-from stg.metrics import fid
-from stg.metrics.fid import get_inception_feature_map_fn
-from stg.utils.checkpoint import construct_classifier_from_checkpoint
-from stg.datasets import get_mnist, get_fashion_mnist, get_cifar10
-from stg.datasets.utils import BinaryDataset
+from src.metrics import fid
+from src.metrics.fid import get_inception_feature_map_fn
+from src.utils.checkpoint import construct_classifier_from_checkpoint
+from src.datasets import get_mnist, get_fashion_mnist, get_cifar10
+from src.datasets.utils import BinaryDataset
 
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('--data', dest='dataroot',
-                    default='/home/lcunha/data', help='Dir with dataset')
+                    default=f"{os.environ['FILESDIR']}/data", help='Dir with dataset')
 parser.add_argument('--dataset', dest='dataset',
                     default='fashion-mnist', help='Dataset (mnist or fashion-mnist)')
 parser.add_argument('--pos', dest='pos_class', default=3,
@@ -26,7 +26,7 @@ parser.add_argument('--model-path', dest='model_path', default=None, type=str,
                     help=('Path to classifier to use'
                           'If none, uses InceptionV3'))
 parser.add_argument('--num-workers', type=int, default=6)
-parser.add_argument('--device', type=str, default='cuda:0',
+parser.add_argument('--device', type=str, default='cuda:1',
                     help='Device to use. Like cuda, cuda:0 or cpu')
 parser.add_argument('--name', dest='name', default=None,
                     help='name of gen .npz file')

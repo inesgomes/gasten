@@ -10,11 +10,11 @@ import os
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from stg.datasets import load_dataset
-from stg.metrics.accuracy import binary_accuracy, multiclass_accuracy
-from stg.utils import setup_reprod
-from stg.utils.checkpoint import checkpoint, construct_classifier_from_checkpoint
-from stg.classifier import construct_classifier
+from src.datasets import load_dataset
+from src.metrics.accuracy import binary_accuracy, multiclass_accuracy
+from src.utils import setup_reprod
+from src.utils.checkpoint import checkpoint, construct_classifier_from_checkpoint
+from src.classifier import construct_classifier
 
 
 def evaluate(C, device, dataloader, criterion, acc_fun, verbose=True, desc='Validate', header=None):
@@ -134,9 +134,9 @@ def train(C, opt, crit, train_loader, val_loader, test_loader, acc_fun, args, na
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data-dir', dest='data_dir',
-                        default='/home/lcunha/data', help='Path to dataset')
+                        default=f"{os.environ['FILESDIR']}/data", help='Path to dataset')
     parser.add_argument('--out-dir', dest='out_dir',
-                        default='/media/TOSHIBA6T/LCUNHA/msc/classifiers', help='Path to generated files')
+                        default=f"{os.environ['FILESDIR']}/models", help='Path to generated files')
     parser.add_argument('--name', dest='name', default=None,
                         help='Name of the classifier for output files')
     parser.add_argument('--dataset', dest='dataset_name',
@@ -157,7 +157,7 @@ def parse_args():
                         help='ADAM opt learning rate')
     parser.add_argument('--nf', type=int, default=2, help='Num features')
     parser.add_argument('--seed', default=None, type=int, help='Seed')
-    parser.add_argument('--device', default='cuda:0',
+    parser.add_argument('--device', default='cuda:1',
                         help='Device to run experiments (cpu, cuda:0, cuda:1, ...')
 
     return parser.parse_args()

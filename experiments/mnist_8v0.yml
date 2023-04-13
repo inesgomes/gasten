@@ -1,14 +1,14 @@
-project: "stg-final"
+project: "gasten_20230423"
 name: "mnist-8v0"
-out-dir: "/media/TOSHIBA6T/LCUNHA/out"
-data-dir: "/home/lcunha/data"
-test-noise: "/home/lcunha/data/z/z_2000_64"
+out-dir: "/media/SEAGATE6T/IGOMES/out"
+data-dir: "/media/SEAGATE6T/IGOMES/data"
+test-noise: "/media/SEAGATE6T/IGOMES/data/z/z_2000_64"
 fixed-noise: 200
 
-device: cuda:0
+device: cuda:1
 num-workers: 6
 
-fid-stats-path: "/home/lcunha/data/fid-stats/stats.inception.mnist.8v0.npz"
+fid-stats-path: "/media/SEAGATE6T/IGOMES/data/fid-stats/stats.inception.mnist.8v0.npz"
 
 num-runs: 3
 
@@ -53,9 +53,9 @@ train:
     batch-size: 64
     disc-iters: 1
     classifier:
-      - "/media/TOSHIBA6T/LCUNHA/classifiers/mnist.8v0/cnn-1-1.96550"
-      - "/media/TOSHIBA6T/LCUNHA/classifiers/mnist.8v0/cnn-2-1.26643"
-      - "/media/TOSHIBA6T/LCUNHA/classifiers/mnist.8v0/cnn-4-1.87208"
+      - "/media/SEAGATE6T/IGOMES/models/mnist.8v0/cnn-1-1.96550"
+      - "/media/SEAGATE6T/IGOMES/models/mnist.8v0/cnn-2-1.26643"
+      - "/media/SEAGATE6T/IGOMES/models/mnist.8v0/cnn-4-1.87208"
     weight:
       - 0
       - mgda
