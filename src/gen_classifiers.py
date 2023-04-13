@@ -1,13 +1,16 @@
-from curses.ascii import isdigit
 import itertools
 import subprocess
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import os
+from dotenv import load_dotenv
 
+
+load_dotenv()
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('--data-dir', dest='dataroot',
-                    default='/home/lcunha/data', help='Dir with dataset')
+                    default=f"{os.environ['FILESDIR']}/data", help='Dir with dataset')
 parser.add_argument('--out-dir', dest='out_dir',
-                    default='/media/TOSHIBA6T/LCUNHA/classifiers', help='Path to generated files')
+                    default=f"{os.environ['FILESDIR']}/models", help='Path to generated files')
 parser.add_argument('--dataset', dest='dataset',
                     default='mnist', help='Dataset (mnist or fashion-mnist or cifar10)')
 parser.add_argument('--n-classes', dest='n_classes',
@@ -57,7 +60,7 @@ def main():
         print(f"\nGenerating classifiers for {pos_class}v{neg_class} ...")
         for clf_type, nf, epochs in itertools.product(l_clf_type, l_nf, l_epochs):
             print("\n", clf_type, nf, epochs)
-            proc = subprocess.run(["python", "-m", "stg.classifier.train",
+            proc = subprocess.run(["python", "-m", "src.classifier.train",
                                    "--device", args.device,
                                    "--data-dir", args.dataroot,
                                    "--out-dir", args.out_dir,

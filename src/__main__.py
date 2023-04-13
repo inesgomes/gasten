@@ -7,17 +7,17 @@ import pandas as pd
 import torch
 import wandb
 
-from stg.metrics import fid, LossSecondTerm
-from stg.datasets import load_dataset
-from stg.gan.train import train
-from stg.gan.update_g import UpdateGeneratorGAN, UpdateGeneratorGASTEN, UpdateGeneratorGASTEN_MGDA
-from stg.metrics.c_output_hist import OutputsHistogram
-from stg.utils import load_z, set_seed, setup_reprod, create_checkpoint_path, gen_seed, seed_worker
-from stg.utils.plot import plot_metrics
-from stg.utils.config import read_config
-from stg.utils.checkpoint import checkpoint, construct_gan_from_checkpoint, construct_classifier_from_checkpoint, get_gan_path_at_epoch, load_gan_train_state
-from stg.gan import construct_gan, construct_loss
-from stg.classifier import ClassifierCache
+from src.metrics import fid, LossSecondTerm
+from src.datasets import load_dataset
+from src.gan.train import train
+from src.gan.update_g import UpdateGeneratorGAN, UpdateGeneratorGASTEN, UpdateGeneratorGASTEN_MGDA
+from src.metrics.c_output_hist import OutputsHistogram
+from src.utils import load_z, set_seed, setup_reprod, create_checkpoint_path, gen_seed, seed_worker
+from src.utils.plot import plot_metrics
+from src.utils.config import read_config
+from src.utils.checkpoint import construct_gan_from_checkpoint, construct_classifier_from_checkpoint, get_gan_path_at_epoch, load_gan_train_state
+from src.gan import construct_gan, construct_loss
+from src.classifier import ClassifierCache
 
 
 def parse_args():
@@ -81,7 +81,7 @@ def train_modified_gan(config, dataset, cp_dir, gan_path, test_noise,
     set_seed(seed)
     wandb.init(project=config["project"],
                group=config["name"],
-               entity="luispcunha",
+               entity=os.environ['ENTITY'],
                job_type='step-2',
                name=f'{run_id}-{run_name}',
                config={
@@ -126,7 +126,6 @@ def compute_dataset_fid_stats(dset, get_feature_map_fn, dims, batch_size=64, dev
 def main():
     load_dotenv()
     args = parse_args()
-
     config = read_config(args.config_path)
     print("Loaded experiment configuration from {}".format(args.config_path))
 
@@ -223,7 +222,7 @@ def main():
 
             wandb.init(project=config["project"],
                        group=config["name"],
-                       entity="luispcunha",
+                       entity=os.environ['ENTITY'],
                        job_type='step-1',
                        name=f'{run_id}-step-1',
                        config={
@@ -252,7 +251,7 @@ def main():
             original_gan_cp_dir = config['train']['step-1']
             step_1_train_state = load_gan_train_state(original_gan_cp_dir)
 
-        print(" > Start step 2 (gan with modified loss")
+        print(" > Start step 2 (gan with modified (loss)")
 
         if 'step-1-epochs' not in config['train']['step-2']:
             step_1_epochs = ["best"]

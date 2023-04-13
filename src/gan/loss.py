@@ -1,7 +1,6 @@
 import torch
 import torch.autograd as autograd
 import torch.nn.functional as F
-from stg.utils.min_norm_solvers import MinNormSolver
 
 
 def valid_loss(config):

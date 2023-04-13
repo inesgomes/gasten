@@ -1,5 +1,5 @@
 import torch.autograd as autograd
-from stg.utils.min_norm_solvers import MinNormSolver
+from src.utils.min_norm_solvers import MinNormSolver
 import numpy as np
 
 
