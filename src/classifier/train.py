@@ -157,7 +157,7 @@ def parse_args():
                         help='ADAM opt learning rate')
     parser.add_argument('--nf', type=int, default=2, help='Num features')
     parser.add_argument('--seed', default=None, type=int, help='Seed')
-    parser.add_argument('--device', default='cuda:1',
+    parser.add_argument('--device', default='cuda:0',
                         help='Device to run experiments (cpu, cuda:0, cuda:1, ...')
 
     return parser.parse_args()

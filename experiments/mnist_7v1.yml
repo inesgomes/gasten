@@ -5,7 +5,7 @@ data-dir: ${FILESDIR}/data
 test-noise: ${FILESDIR}/data/z/z_2000_64
 fixed-noise: 2000
 
-device: cuda:1
+device: cuda:0
 num-workers: 6
 
 fid-stats-path: ${FILESDIR}/data/fid-stats/stats.inception.mnist.7v1.npz
@@ -53,9 +53,9 @@ train:
     batch-size: 64
     disc-iters: 1
     classifier:
-      - ${FILESDIR}/models/mnist.7v1/cnn-1-1.25442
-      - ${FILESDIR}/models/mnist.7v1/cnn-2-1.7501
-      - ${FILESDIR}/models/mnist.7v1/cnn-4-1.21139
+      - ${FILESDIR}/models/mnist.7v1/cnn-1-1.22602
+      - ${FILESDIR}/models/mnist.7v1/cnn-2-1.88299
+      - ${FILESDIR}/models/mnist.7v1/cnn-4-1.44629
     weight:
       - 0
       - mgda
@@ -65,10 +65,3 @@ train:
       - 20
       - 25
       - 30
-
-
-
-
-
-
-

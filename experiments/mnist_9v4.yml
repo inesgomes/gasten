@@ -5,7 +5,7 @@ data-dir: "/media/SEAGATE6T/IGOMES/data"
 test-noise: "/media/SEAGATE6T/IGOMES/data/z/z_2000_64"
 fixed-noise: 200
 
-device: cuda:1
+device: cuda:0
 num-workers: 6
 
 fid-stats-path: "/media/SEAGATE6T/IGOMES/data/fid-stats/stats.inception.mnist.9v4.npz"

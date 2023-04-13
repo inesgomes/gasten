@@ -11,6 +11,7 @@ from src.datasets import get_mnist, get_fashion_mnist, get_cifar10
 from src.datasets.utils import BinaryDataset
 
 
+load_dotenv()
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('--data', dest='dataroot',
                     default=f"{os.environ['FILESDIR']}/data", help='Dir with dataset')
@@ -26,14 +27,13 @@ parser.add_argument('--model-path', dest='model_path', default=None, type=str,
                     help=('Path to classifier to use'
                           'If none, uses InceptionV3'))
 parser.add_argument('--num-workers', type=int, default=6)
-parser.add_argument('--device', type=str, default='cuda:1',
+parser.add_argument('--device', type=str, default='cuda:0',
                     help='Device to use. Like cuda, cuda:0 or cpu')
 parser.add_argument('--name', dest='name', default=None,
                     help='name of gen .npz file')
 
 
 def main():
-    load_dotenv()
     args = parser.parse_args()
     print(args)
 

@@ -1,15 +1,16 @@
 import argparse
 import os
-from .utils import create_and_store_z, gen_seed, set_seed
+from dotenv import load_dotenv
+from utils import create_and_store_z, gen_seed, set_seed
 
 
 if __name__ == '__main__':
+    load_dotenv()
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--nz", dest="nz", required=True, type=int)
     parser.add_argument("--z-dim", dest="z_dim", required=True, type=int)
-    parser.add_argument("--out-dir", dest="out_dir",
-                        required=True, help="Config file", default=f"{os.environ['FILEDIR']}/data/z")
+    parser.add_argument("--out-dir", dest="out_dir", help="Config file", default=f"{os.environ['FILESDIR']}/data/z")
 
     args = parser.parse_args()
     seed = gen_seed() if args.seed is None else args.seed

@@ -2,7 +2,10 @@ import itertools
 import subprocess
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import os
+from dotenv import load_dotenv
 
+
+load_dotenv()
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('--data-dir', dest='dataroot',
                     default=f"{os.environ['FILESDIR']}/data", help='Dir with dataset')
@@ -57,7 +60,7 @@ def main():
         print(f"\nGenerating classifiers for {pos_class}v{neg_class} ...")
         for clf_type, nf, epochs in itertools.product(l_clf_type, l_nf, l_epochs):
             print("\n", clf_type, nf, epochs)
-            proc = subprocess.run(["python", "-m", "stg.classifier.train",
+            proc = subprocess.run(["python", "-m", "src.classifier.train",
                                    "--device", args.device,
                                    "--data-dir", args.dataroot,
                                    "--out-dir", args.out_dir,
@@ -68,7 +71,7 @@ def main():
                                    "--nf", nf,
                                    "--epochs", epochs,
                                    "--batch-size", str(args.batch_size),
-                                   "--lr", str(args.lr)], # type: ignore
+                                   "--lr", str(args.lr)],
                                   capture_output=True)
             for line in proc.stdout.split(b'\n')[-4:-1]:
                 print(line.decode())
