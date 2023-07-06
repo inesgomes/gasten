@@ -1,16 +1,30 @@
-import numpy as np
+
 import os
+import math
+import wandb
+import torch
+import numpy as np
 import matplotlib.pyplot as plt
 from captum.attr import visualization as viz
-from captum.attr import Saliency, IntegratedGradients, DeepLift, NoiseTunnel, GradientShap
-import torch
-import torchvision
+from captum.attr import Saliency, IntegratedGradients, DeepLift, NoiseTunnel, GradientShap, Occlusion, LayerGradCam, LayerAttribution
 from dotenv import load_dotenv
 from src.utils.config import read_config
 from src.datasets import load_dataset
 from src.utils.checkpoint import construct_classifier_from_checkpoint
-import torch.nn as nn
-import math
+from matplotlib.colors import LinearSegmentedColormap
+
+
+DEFAULT_CMAP = LinearSegmentedColormap.from_list('custom blue',
+                                                 [(0, '#ffffff'),
+                                                  (0.25, '#0000ff'),
+                                                  (1, '#0000ff')], N=256)
+
+def get_test_mnist_data(dataset_name, data_dir, ind, pos_class, neg_class):
+    # this is the original dataset -> may try to use this initially
+    # using test data 
+    dataset, _, _ = load_dataset(dataset_name, data_dir, pos_class, neg_class, False)
+    images = dataset.data.to(device)
+    return images[ind]
 
 
 def calc_original(image, folder_path):
@@ -52,6 +66,17 @@ def calc_saliency(net, input, original_image, folder_path):
 
 
 def calc_integratedgrads(net, input, original_image, folder_path):
+    """_summary_
+    Feature attribution attributes a particular output to features of the input. 
+    It uses a specific input to generate a map of the relative importance of each input feature to a particular output feature.
+    Integrated Gradients assigns an importance score to each input feature by approximating the integral of the gradients of the model’s 
+    output with respect to the inputs.
+    Args:
+        net (_type_): _description_
+        input (_type_): _description_
+        original_image (_type_): _description_
+        folder_path (_type_): _description_
+    """
     ig = IntegratedGradients(net)
     attr_ig, delta = ig.attribute(input, baselines=input * 0, return_convergence_delta=True, n_steps=200)
     attr_ig = np.transpose(attr_ig.squeeze(0).cpu().detach().numpy(), (1,2,0))
@@ -97,12 +122,66 @@ def calc_deeplift(net, input, original_image, folder_path):
     plt.close()
 
 
+def calc_occlusion(net, input, original_image, folder_path):
+    """
+    It involves replacing sections of the input image, and examining the effect on the output signal
+    """
+    occlusion = Occlusion(net)
+    attributions_occ = occlusion.attribute(input,
+                                       strides=(3, 8, 8),
+                                       sliding_window_shapes=(1, 15, 15),
+                                       baselines=0)
+    attr = np.transpose(attributions_occ.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
+    
+    viz.visualize_image_attr_multiple(attr,
+                                      original_image,
+                                      ["original_image", "heat_map", "heat_map", "masked_image"],
+                                      ["all", "positive", "negative", "positive"],
+                                      show_colorbar=True,
+                                      titles=["Original", "Positive Attribution", "Negative Attribution", "Masked"],
+                                     )
+    plt.savefig(f"{folder_path}/occlusion.svg")
+    plt.close()
+
+
+def calc_gradcam(net, layer_idx, input, original_image, folder_path):
+    """
+    Layer Attribution allows you to attribute the activity of hidden layers within your model to features of your input.
+    GradCAM computes the gradients of the target output with respect to the given layer, averages for each output channel, 
+    and multiplies the average gradient for each channel by the layer activations.
+    """
+    layers = list(net.modules())[2:]
+    print(len(layers))
+
+    layer_gradcam = LayerGradCam(net, layers[layer_idx])
+    attributions_lgc = layer_gradcam.attribute(input)
+    viz.visualize_image_attr(attributions_lgc[0].cpu().permute(1,2,0).detach().numpy(), sign="all",  title="Layer {layer_idx}")
+    plt.savefig(f"{folder_path}/layer{layer_idx}_gradcam.svg")
+    plt.close()
+
+    upsamp_attr_lgc = LayerAttribution.interpolate(attributions_lgc, input.shape[2:])
+
+    viz.visualize_image_attr_multiple(upsamp_attr_lgc[0].cpu().permute(1,2,0).detach().numpy(),
+                                      original_image,
+                                      ["original_image","blended_heat_map","masked_image"],
+                                      ["all","positive","positive"],
+                                      show_colorbar=True,
+                                      titles=["Original", "Positive Attribution", "Masked"],
+                                      )
+    plt.savefig(f"{folder_path}/layer{layer_idx}_gradcam_mult.svg")
+    plt.close()
+
 
 if __name__ == "__main__":
     # load environment variables
     load_dotenv()
     # read configs
     config = read_config('experiments/mnist_7v1.yml')
+
+    # WANDB
+    #api = wandb.Api()
+    #file = api.run(f"gomes-inesisabel/gasten_20230413/2wjbt22x").file("media/images/eval/samples_79_ec085773881b0d6e11df.png")
+    #print(file.type)
 
     ###
     # Setup
@@ -116,14 +195,11 @@ if __name__ == "__main__":
     net, _, _, _ = construct_classifier_from_checkpoint(config['train']['step-2']['classifier'][2], device=device)
     net.eval() 
 
-    # this is the original dataset -> may try to use this initially
-    # using test data 
-    dataset, _, _ = load_dataset(config["dataset"]["name"], config["data-dir"], pos_class, neg_class, False)
-
-    # TODO find one suitable image
-    images = dataset.data.to(device)
+    # TEST SET DATA
     ind = 0
-    input = images[ind].unsqueeze(0)
+    image = get_test_mnist_data(config["dataset"]["name"], config["data-dir"], ind, pos_class, neg_class)
+
+    input = image.unsqueeze(0)
     input.requires_grad = True
 
     pred = net(input)
@@ -139,5 +215,10 @@ if __name__ == "__main__":
     calc_integratedgrads_noise(net, input, original_image, folder_path)
     calc_gradientshap(net, input, original_image, folder_path)
     calc_deeplift(net, input, original_image, folder_path)
+    # not working
+    #calc_occlusion(net, input, original_image, folder_path)
+    calc_gradcam(net, 0, input, original_image, folder_path)
+    calc_gradcam(net, 3, input, original_image, folder_path)
+    calc_gradcam(net, 7, input, original_image, folder_path)
 
     # TODO the remaining visualizations  
