@@ -151,8 +151,7 @@ def calc_gradcam(net, layer_idx, input, original_image, folder_path):
     and multiplies the average gradient for each channel by the layer activations.
     """
     layers = list(net.modules())[2:]
-    print(len(layers))
-
+    #print(len(layers))
     layer_gradcam = LayerGradCam(net, layers[layer_idx])
     attributions_lgc = layer_gradcam.attribute(input)
     viz.visualize_image_attr(attributions_lgc[0].cpu().permute(1,2,0).detach().numpy(), sign="all",  title="Layer {layer_idx}")
@@ -196,29 +195,33 @@ if __name__ == "__main__":
     net.eval() 
 
     # TEST SET DATA
-    ind = 0
-    image = get_test_mnist_data(config["dataset"]["name"], config["data-dir"], ind, pos_class, neg_class)
+    #images = get_test_mnist_data(config["dataset"]["name"], config["data-dir"], ind, pos_class, neg_class)
+    # INTERPOLATION DATA
+    rnd = 90
+    images = torch.load(f"{os.environ['FILESDIR']}/data/vae/sample_{rnd}.pt")
 
-    input = image.unsqueeze(0)
-    input.requires_grad = True
+    for ind in range(images.shape[0]):
+        image = images[ind].to(device)
+        input = image.unsqueeze(0)
+        # input.requires_grad = True
 
-    pred = net(input)
-    label = pos_class if pred >= 0.5 else neg_class
-    folder_path = f"{config['data-dir']}/xai/{model_name}/mnist_{label}_{math.floor(pred.item()*100)}"
-    print(f" > Saving to {folder_path}")
-    
-    # calculate interpretable representation
-    original_image = calc_original(images[ind], folder_path)
-    calc_saliency(net, input, original_image, folder_path)
-    net.zero_grad()
-    calc_integratedgrads(net, input, original_image, folder_path)
-    calc_integratedgrads_noise(net, input, original_image, folder_path)
-    calc_gradientshap(net, input, original_image, folder_path)
-    calc_deeplift(net, input, original_image, folder_path)
-    # not working
-    #calc_occlusion(net, input, original_image, folder_path)
-    calc_gradcam(net, 0, input, original_image, folder_path)
-    calc_gradcam(net, 3, input, original_image, folder_path)
-    calc_gradcam(net, 7, input, original_image, folder_path)
+        pred = net(input)
+        label = pos_class if pred >= 0.5 else neg_class
+        folder_path = f"{config['data-dir']}/xai/{model_name}/vae{rnd}_{ind}_pred_{label}_{math.floor(pred.item()*100)}"
+        print(f" > Saving to {folder_path}")
+        
+        # calculate interpretable representation
+        original_image = calc_original(images[ind], folder_path)
+        calc_saliency(net, input, original_image, folder_path)
+        net.zero_grad()
+        calc_integratedgrads(net, input, original_image, folder_path)
+        calc_integratedgrads_noise(net, input, original_image, folder_path)
+        calc_gradientshap(net, input, original_image, folder_path)
+        calc_deeplift(net, input, original_image, folder_path)
+        # not working
+        #calc_occlusion(net, input, original_image, folder_path)
+        calc_gradcam(net, 0, input, original_image, folder_path)
+        calc_gradcam(net, 3, input, original_image, folder_path)
+        calc_gradcam(net, 7, input, original_image, folder_path)
 
-    # TODO the remaining visualizations  
+        # TODO the remaining visualizations  
