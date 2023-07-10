@@ -277,7 +277,7 @@ def main():
             C.eval()
             C.output_feature_maps = True
 
-            class_cache = ClassifierCache(C)
+            class_cache = ClassifierCache(C) 
 
             def get_feature_map_fn(images, batch_idx, batch_size):
                 return class_cache.get(images, batch_idx, batch_size, output_feature_maps=True)[1]

@@ -70,13 +70,13 @@ def train(autoencoder, data, epochs=20):
             opt.step()
     return autoencoder
 
-def interpolate(autoencoder, x_1, x_2, n=12):
+def interpolate(autoencoder, x_1, class_1, x_2, class_2, n=12):
     z_1 = autoencoder.encoder(x_1)
     z_2 = autoencoder.encoder(x_2)
     z = torch.stack([z_1 + (z_2 - z_1)*t for t in np.linspace(0, 1, n)])
     interpolate_list = autoencoder.decoder(z)
-    rnd = random.randint(1, 100)
-    path = f"{os.environ['FILESDIR']}/data/vae/sample_{rnd}"
+    rnd = random.randint(1, 1000)
+    path = f"{os.environ['FILESDIR']}/data/vae/sample_{class_1}vs{class_2}_{rnd}"
     save_image(interpolate_list, path + ".png")
     torch.save(interpolate_list, f"{path}.pt")
     print(f" > saved interpolation to {path}")
@@ -85,15 +85,23 @@ def interpolate(autoencoder, x_1, x_2, n=12):
 if __name__ == "__main__":
     load_dotenv()
 
+    # things that could be arguments
     class_1 = 1
     class_2 = 7
-    latent_dims = 2
     n_interpolations = 10
+    TRAIN = False
+
+    # setup
+    latent_dims = 2
+    batch_size = 128
 
     # LOAD data
     print(" > loading data ...")
     mnist_dataset = torchvision.datasets.MNIST(f'{os.environ["FILESDIR"]}/data',
-                                            transform=torchvision.transforms.ToTensor(),
+                                            transform=torchvision.transforms.Compose([
+                                             torchvision.transforms.ToTensor(),
+                                             torchvision.transforms.Normalize(
+                                                 (0.5,), (0.5,))]),
                                             download=True)
 
     # Filter the dataset to include only the selected classes
@@ -101,18 +109,21 @@ if __name__ == "__main__":
     filtered_dataset = torch.utils.data.Subset(mnist_dataset, filtered_indices)
 
     # Create a data loader for the filtered dataset
-    data_loader = torch.utils.data.DataLoader(filtered_dataset, batch_size=128, shuffle=False)
+    data_loader = torch.utils.data.DataLoader(filtered_dataset, batch_size=batch_size, shuffle=True)
 
-    print(" > training VAE ...")
-    vae = VariationalAutoencoder(latent_dims).to(DEVICE) # GPU
-    vae = train(vae, data_loader)
-
-    # TODO save vae
+    vae_path = os.environ['FILESDIR'] + f"/models/vae/vae_{class_1}vs{class_2}.pt"
+    if os.path.exists(vae_path) & (TRAIN == False):
+        vae = torch.load(vae_path)
+    else:
+        print(" > training VAE ...")
+        vae = VariationalAutoencoder(latent_dims).to(DEVICE) # GPU
+        vae = train(vae, data_loader)
+        torch.save(vae, vae_path)
 
     print(" > creating interpolations ...")
-
     x, y = next(data_loader.__iter__()) # hack to grab a batch
-    x_1 = x[y == 1][1].to(DEVICE) # find a 1
-    x_2 = x[y == 7][1].to(DEVICE) # find a 7
+    rnd_index = random.randint(0, int(batch_size/10))
+    x_1 = x[y == class_1][rnd_index].to(DEVICE) # find a 1
+    x_2 = x[y == class_2][rnd_index].to(DEVICE) # find a 7
 
-    interpolate(vae, x_1, x_2, n=n_interpolations)
+    interpolate(vae, x_1, class_1, x_2, class_2, n=n_interpolations)

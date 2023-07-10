@@ -41,3 +41,7 @@ ENTITY=<wandb entity to track experiments>
 Run GASTeN to create images in the bounday between **1** and **7**.
 
 `python -m src --config experiments/mnist_7v1.yml`
+
+Train one GASTeN:
+
+`python -m src --config experiments/mnist_7v1_1iter.yml`

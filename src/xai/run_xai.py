@@ -11,13 +11,8 @@ from dotenv import load_dotenv
 from src.utils.config import read_config
 from src.datasets import load_dataset
 from src.utils.checkpoint import construct_classifier_from_checkpoint
-from matplotlib.colors import LinearSegmentedColormap
+import random
 
-
-DEFAULT_CMAP = LinearSegmentedColormap.from_list('custom blue',
-                                                 [(0, '#ffffff'),
-                                                  (0.25, '#0000ff'),
-                                                  (1, '#0000ff')], N=256)
 
 def get_test_mnist_data(dataset_name, data_dir, ind, pos_class, neg_class):
     # this is the original dataset -> may try to use this initially
@@ -173,45 +168,59 @@ def calc_gradcam(net, layer_idx, input, original_image, folder_path):
 
 if __name__ == "__main__":
     # load environment variables
-    load_dotenv()
-    # read configs
-    config = read_config('experiments/mnist_7v1.yml')
+    load_dotenv()   
 
-    # WANDB
-    #api = wandb.Api()
-    #file = api.run(f"gomes-inesisabel/gasten_20230413/2wjbt22x").file("media/images/eval/samples_79_ec085773881b0d6e11df.png")
-    #print(file.type)
+    # things that should be arguments
+    sample_no = 330
+    type_of_data = "gasten"
+    experiments = "experiments/mnist_7v1_1iter.yml"
+
+    # read configs
+    config = read_config(experiments)
+    classifier = config['train']['step-2']['classifier'][0]
 
     ###
     # Setup
     ###
     pos_class = config["dataset"]["binary"]["pos"]
     neg_class = config["dataset"]["binary"]["neg"]
-    model_name = config['train']['step-2']['classifier'][2].split("/")[-1]
+    model_name = classifier.split("/")[-1]
     device = torch.device(config["device"])
 
+    # TEST SET DATA
+    if type_of_data == "test":
+        idx = random.randint(0, 128)
+        images = get_test_mnist_data(config["dataset"]["name"], config["data-dir"], idx, pos_class, neg_class)
+    # INTERPOLATION or GASTEN DATA
+    elif (type_of_data == "vae") | (type_of_data == "gasten"):
+        images = torch.load(f"{os.environ['FILESDIR']}/data/{type_of_data}/sample_{neg_class}vs{pos_class}_{sample_no}.pt")
+    else:
+        raise Exception("Invalid type of data")
+    
     # get classifier 
-    net, _, _, _ = construct_classifier_from_checkpoint(config['train']['step-2']['classifier'][2], device=device)
+    net, _, _, _ = construct_classifier_from_checkpoint(classifier, device=device)
     net.eval() 
 
-    # TEST SET DATA
-    #images = get_test_mnist_data(config["dataset"]["name"], config["data-dir"], ind, pos_class, neg_class)
-    # INTERPOLATION DATA
-    rnd = 90
-    images = torch.load(f"{os.environ['FILESDIR']}/data/vae/sample_{rnd}.pt")
-
+    # this is only needed for the interpolation data
     for ind in range(images.shape[0]):
-        image = images[ind].to(device)
-        input = image.unsqueeze(0)
-        # input.requires_grad = True
-
+        if type_of_data == "test":
+            image = images
+            input = image.unsqueeze(0)
+            input.requires_grad = True
+        else:
+            image = images[ind].to(device)
+            input = image.unsqueeze(0)
+            
         pred = net(input)
         label = pos_class if pred >= 0.5 else neg_class
-        folder_path = f"{config['data-dir']}/xai/{model_name}/vae{rnd}_{ind}_pred_{label}_{math.floor(pred.item()*100)}"
+        if type_of_data == "test":
+            folder_path = f"{config['data-dir']}/xai/{model_name}/mnist_pred_{label}_{math.floor(pred.item()*100)}"
+        else:
+            folder_path = f"{config['data-dir']}/xai/{model_name}/{type_of_data}{sample_no}/{ind}_pred_{label}_{math.floor(pred.item()*100)}"
         print(f" > Saving to {folder_path}")
         
         # calculate interpretable representation
-        original_image = calc_original(images[ind], folder_path)
+        original_image = calc_original(image, folder_path)
         calc_saliency(net, input, original_image, folder_path)
         net.zero_grad()
         calc_integratedgrads(net, input, original_image, folder_path)
@@ -223,5 +232,3 @@ if __name__ == "__main__":
         calc_gradcam(net, 0, input, original_image, folder_path)
         calc_gradcam(net, 3, input, original_image, folder_path)
         calc_gradcam(net, 7, input, original_image, folder_path)
-
-        # TODO the remaining visualizations  
