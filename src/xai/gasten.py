@@ -42,14 +42,14 @@ def get_experiment_number():
 
 
 if __name__ == "__main__":
+    ### 
     # SETUP
+    ###
     load_dotenv()
     config = read_config("experiments/mnist_7v1_1iter.yml")
 
     device = torch.device(config["device"])
-
     classifier_name, weight, epoch1 = get_gasten_info(config)
-    
     gasten_name = get_experiment_number()
     config_run = {
         'id': "Jul10T16-31_3l4yezei",
@@ -65,12 +65,13 @@ if __name__ == "__main__":
         'image_path' : f"{os.environ['FILESDIR']}/data/gasten/sample_{config['dataset']['binary']['neg']}vs{config['dataset']['binary']['pos']}_{gasten_name}"
     }
 
+    # start experiment
     wandb.init(project=config['project'],
                dir=os.environ['FILESDIR'],
                group=config['name'],
                entity=os.environ['ENTITY'],
-               job_type='test_gasten',
-               name=f"{config_run['id']}-gasten-{config_run['name']}",
+               job_type='test-gasten',
+               name=f"{config_run['id'].split('_')[-1]}_no-{config_run['name']}",
                config=config_run)
 
     # get GAN
@@ -78,23 +79,27 @@ if __name__ == "__main__":
         config, config_run['id'], config_run['gasten']['epoch2'])
     netG, _, _, _ = construct_gan_from_checkpoint(gan_path, device=device)
     fixed_noise = torch.randn(
-        config['fixed-noise'], config["model"]["z_dim"], device=device)
-    images = netG(fixed_noise)
+        config['fixed-noise'], config["model"]["z_dim"], device=device) d
 
     # get classifier
     net, _, _, _ = construct_classifier_from_checkpoint(config['train']['step-2']['classifier'][0], device=device)
-    net.eval()
+    
+    # create fake images and apply classifier
+    with torch.no_grad():
+        netG.eval()
+        images = netG(fixed_noise)
+        net.eval()
+        pred = net(images)
 
-    # apply classifier and select images with prob between 0.45 and 0.55
-    pred = net(images)
+    # select the fake images with prob between 0.45 and 0.55
     images_sel = images[(pred >= config_run['min_prob']) &
                         (pred <= config_run['max_prob'])]
 
     # save images (locally)
     save_image(images_sel, f"{config_run['image_path']}.png", nrow=10)
     torch.save(images_sel, f"{config_run['image_path']}.pt")
-    # Log the image to wandb
-    wandb.log({"image":  wandb.Image(images_sel)})
+    # save images (wandb)
+    wandb.log({"image": wandb.Image(images_sel)})
 
     print(
         f"> Saved {images_sel.shape[0]} GASTeN images with probs between to {config_run['min_prob']} and {config_run['max_prob']} to {path}")

@@ -107,6 +107,9 @@ if __name__ == "__main__":
 
     # LOAD data
     print(" > loading data ...")
+    # TODO use the same data as the classifier
+    # dataset, _, _ = load_dataset(dataset_name, data_dir, pos_class, neg_class, False)
+
     mnist_dataset = torchvision.datasets.MNIST(f'{os.environ["FILESDIR"]}/data',
                                                     transform=torchvision.transforms.Compose([
                                                     torchvision.transforms.ToTensor(),

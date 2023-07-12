@@ -11,24 +11,46 @@ from dotenv import load_dotenv
 from src.utils.config import read_config
 from src.datasets import load_dataset
 from src.utils.checkpoint import construct_classifier_from_checkpoint
-import random
 import argparse
+import random
+
+
+def type_data_values(value):
+    if value not in ['gasten', 'vae', 'test']:
+        raise argparse.ArgumentTypeError(f"Invalid type of data: {value}")
+    return value
+
+def sample_no_positive(value):
+    if int(value) < 0:
+        raise argparse.ArgumentTypeError(f"Invalid sample number: {value}")
+    return value
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", dest="config_path",  help="Config file", default='experiments/mnist_7v1_1iter.yml')
-    parser.add_argument("--type", dest="type_data", help="Type of data [gasten, vae, test]", default='gasten')
-    parser.add_argument("--no", dest="sample_no", help="Sample number (only for VAE or GASTeN)")
+    parser.add_argument("--type", dest="type_data", help="Type of data [gasten, vae, test]", type=type_data_values)
+    parser.add_argument("--no", dest="sample_no", help="Sample number (only for VAE or GASTeN)", type=sample_no_positive)
     return parser.parse_args()
 
 
-def get_test_mnist_data(dataset_name, data_dir, ind, pos_class, neg_class):
+def get_test_mnist_data(dataset_name, data_dir, batch_size, pos_class, neg_class):
     # this is the original dataset -> may try to use this initially
     # using test data 
     dataset, _, _ = load_dataset(dataset_name, data_dir, pos_class, neg_class, False)
-    images = dataset.data.to(device)
-    return images[ind]
+    # use data loader to find a batch of images
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    # get first batch of images
+    images, _ = next(iter(data_loader))
+    return images
+
+def get_saved_data(type_of_data, sample_no, batch_size, pos_class, neg_class):
+    # get the images from the saved data
+    dataset = torch.load(f"{os.environ['FILESDIR']}/data/{type_of_data}/sample_{neg_class}vs{pos_class}_{sample_no}.pt")
+    # use data loader to find a batch of images
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    # get first batch of images
+    return next(iter(data_loader))
 
 
 def calc_original(image, folder_path):
@@ -137,6 +159,7 @@ def calc_deeplift(net, input, original_image, folder_path, fig_tuple):
 def calc_occlusion(net, input, original_image, folder_path):
     """
     It involves replacing sections of the input image, and examining the effect on the output signal
+    NOT WORKING
     """
     occlusion = Occlusion(net)
     attributions_occ = occlusion.attribute(input,
@@ -182,98 +205,95 @@ def calc_gradcam(net, layer_idx, input, original_image, folder_path):
     plt.savefig(f"{folder_path}/layer{layer_idx}_gradcam_mult.png")
     plt.close()
 
+def get_x_y(index, max_y):
+    return index // max_y, index % max_y
+
 
 if __name__ == "__main__":
-    # load environment variables
-    load_dotenv()   
-    args = parse_args()
-
-    # things that should be arguments
-    sample_no = args.sample_no
-    type_of_data = args.type_data
-
-    # read configs
-    config = read_config(args.config_path)
-    classifier = config['train']['step-2']['classifier'][0]
-
     ###
     # Setup
     ###
+
+    # load environment variables, arguments and configs
+    load_dotenv()   
+    args = parse_args()
+    config = read_config(args.config_path)
+
+    if (args.type_data != "test") & (args.sample_no is None):
+        raise ValueError("You must provide a sample number")
+    
+    device = torch.device(config["device"])
     pos_class = config["dataset"]["binary"]["pos"]
     neg_class = config["dataset"]["binary"]["neg"]
-    model_name = classifier.split("/")[-1]
-    device = torch.device(config["device"])
+    config_run={
+        'batch_size': 10,
+        'classifier': config['train']['step-2']['classifier'][0].split("/")[-1],
+    }
 
-    # TEST SET DATA
-    if type_of_data == "test":
-        idx = random.randint(0, 128)
-        images = get_test_mnist_data(config["dataset"]["name"], config["data-dir"], idx, pos_class, neg_class)
-    # INTERPOLATION or GASTEN DATA
-    elif (type_of_data == "vae") | (type_of_data == "gasten"):
-        images = torch.load(f"{os.environ['FILESDIR']}/data/{type_of_data}/sample_{neg_class}vs{pos_class}_{sample_no}.pt")
+    # start experiment
+    name = args.sample_no if args.type_data != "test" else random.randint(1, 10000)
+    wandb.init(project=config['project'],
+               dir=os.environ['FILESDIR'],
+               group=config['name'],
+               entity=os.environ['ENTITY'],
+               job_type='xai',
+               name=f"{args.type_data}-{name}",
+               config=config_run)
+    
+    # get data
+    if args.type_data == "test":
+        images = get_test_mnist_data(config["dataset"]["name"], config["data-dir"], config_run['batch_size'], pos_class, neg_class)
     else:
-        raise Exception("Invalid type of data")
+        images = get_saved_data(args.type_data, args.sample_no, config_run['batch_size'], pos_class, neg_class)
     
     # get classifier 
-    net, _, _, _ = construct_classifier_from_checkpoint(classifier, device=device)
+    net, _, _, _ = construct_classifier_from_checkpoint(config['train']['step-2']['classifier'][0], device=device)
     net.eval() 
 
-    # prepare the plots
-    n_imgs = images.shape[0]
-    max_y = 10
-    max_x = n_imgs // max_y + 1
-    fig_ori, axes_ori = plt.subplots(max_x, max_y, figsize=(20,3*max_x))
-    fig_sal, axes_sal = plt.subplots(max_x, max_y, figsize=(20,3*max_x))
-    fig_ig, axes_ig = plt.subplots(max_x, max_y, figsize=(20,3*max_x))
-    fig_shap, axes_shap = plt.subplots(max_x, max_y, figsize=(20,3*max_x))
-    fig_dl, axes_dl = plt.subplots(max_x, max_y, figsize=(20,3*max_x))
+    # prepare the wandb plots
+    max_x, _ = get_x_y(images.shape[0], config_run['batch_size'])
+    fig_ori, axes_ori = plt.subplots(max_x, config_run['batch_size'], figsize=(16,3*max_x))
+    fig_sal, axes_sal = plt.subplots(max_x, config_run['batch_size'], figsize=(16,3*max_x))
+    fig_ig, axes_ig = plt.subplots(max_x, config_run['batch_size'], figsize=(16,3*max_x))
+    fig_shap, axes_shap = plt.subplots(max_x, config_run['batch_size'], figsize=(16,3*max_x))
+    fig_dl, axes_dl = plt.subplots(max_x, config_run['batch_size'], figsize=(16,3*max_x))
 
-    for ind in range(n_imgs):
-        x = ind // max_y
-        y = ind % max_y
+    for ind in range(images.shape[0]):
+        # prepare data to make predictions
+        image = images[ind].to(device)
+        input = image.unsqueeze(0)
+        #input.requires_grad = True
 
-        if type_of_data == "test":
-            image = images
-            input = image.unsqueeze(0)
-            input.requires_grad = True
-        else:
-            image = images[ind].to(device)
-            input = image.unsqueeze(0)
-
+        # predict
         pred = net(input)
         label = pos_class if pred >= 0.5 else neg_class
-        if type_of_data == "test":
-            folder_path = f"{config['data-dir']}/xai/{model_name}/mnist_pred_{label}_{math.floor(pred.item()*100)}"
-        else:
-            folder_path = f"{config['data-dir']}/xai/{model_name}/{type_of_data}{sample_no}/{ind}_pred_{label}_{math.floor(pred.item()*100)}"
+        
+        # prepare indexes and paths
+        x, y = get_x_y(ind, config_run['batch_size'])
+        folder_path = f"{config['data-dir']}/xai/{config_run['classifier']}/{args.type_data}{name}/{ind}_pred_{label}_{math.floor(pred.item()*100)}"
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
         print(f" > Saving to {folder_path}")
 
         # calculate interpretable representation
-
         original_image = calc_original(image, folder_path)
-        viz.visualize_image_attr(None, original_image, method="original_image", title=f"{pred.item():.3f}", plt_fig_axis=(fig_ori, axes_ori[x][y]))
-
-        calc_saliency(net, input, original_image, folder_path, (fig_sal, axes_sal[x][y]))
+        viz.visualize_image_attr(None, original_image, method="original_image", title=f"{pred.item():.3f}", plt_fig_axis=(fig_ori, axes_ori[x][y] if x > 1 else axes_ori[y]))
+        calc_saliency(net, input, original_image, folder_path, (fig_sal, axes_sal[x][y] if x > 1 else axes_sal[y]))
         net.zero_grad()
-        calc_integratedgrads(net, input, original_image, folder_path, (fig_ig, axes_ig[x][y]))
+        calc_integratedgrads(net, input, original_image, folder_path, (fig_ig, axes_ig[x][y] if x > 1 else axes_ig[y]))
         calc_integratedgrads_noise(net, input, original_image, folder_path)
-        calc_gradientshap(net, input, original_image, folder_path, (fig_shap, axes_shap[x][y]))
-        calc_deeplift(net, input, original_image, folder_path, (fig_dl, axes_dl[x][y]))
-        # not working
-        #calc_occlusion(net, input, original_image, folder_path)
+        calc_gradientshap(net, input, original_image, folder_path, (fig_shap, axes_shap[x][y] if x > 1 else axes_shap[y]))
+        calc_deeplift(net, input, original_image, folder_path, (fig_dl, axes_dl[x][y] if x > 1 else axes_dl[y]))
         calc_gradcam(net, 0, input, original_image, folder_path)
         calc_gradcam(net, 3, input, original_image, folder_path)
         calc_gradcam(net, 7, input, original_image, folder_path)
-    
-    fig_ori.suptitle("Original Images")
-    fig_ori.savefig(f"{config['data-dir']}/xai/{model_name}/{type_of_data}{sample_no}/original.png")
-    fig_sal.suptitle("Saliency Method")
-    fig_sal.savefig(f"{config['data-dir']}/xai/{model_name}/{type_of_data}{sample_no}/saliency.png")
-    fig_ig.suptitle("Integrated Gradients Method")
-    fig_ig.savefig(f"{config['data-dir']}/xai/{model_name}/{type_of_data}{sample_no}/integrated_grads.png")
-    fig_shap.suptitle("Gradient SHAP Method")
-    fig_shap.savefig(f"{config['data-dir']}/xai/{model_name}/{type_of_data}{sample_no}/gradient_shap.png")
-    fig_dl.suptitle("DeepLift Method")
-    fig_dl.savefig(f"{config['data-dir']}/xai/{model_name}/{type_of_data}{sample_no}/deeplift.png")
+
+    # save images to wandb
+    wandb.log({"image_xai": wandb.Image(fig_ori, caption="Original Images")})
+    wandb.log({"image_xai": wandb.Image(fig_sal, caption="Saliency Method")})
+    wandb.log({"image_xai": wandb.Image(fig_ig, caption="Integrated Gradients Method")})
+    wandb.log({"image_xai": wandb.Image(fig_shap, caption="Gradient SHAP Method")})
+    wandb.log({"image_xai": wandb.Image(fig_dl, caption="DeepLift Method")})
+
+    # close wandb
+    wandb.finish()
