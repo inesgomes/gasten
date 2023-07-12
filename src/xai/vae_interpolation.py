@@ -10,10 +10,9 @@ import matplotlib.pyplot as plt; plt.rcParams['figure.dpi'] = 200
 import random
 from dotenv import load_dotenv
 import os
-
+from src.utils.checkpoint import construct_classifier_from_checkpoint
 
 DEVICE= 'cuda:1'
-
 
 class Decoder(nn.Module):
     def __init__(self, latent_dims):
@@ -71,15 +70,25 @@ def train(autoencoder, data, epochs=20):
     return autoencoder
 
 def interpolate(autoencoder, x_1, class_1, x_2, class_2, n=12):
+    # create interpolations
     z_1 = autoencoder.encoder(x_1)
     z_2 = autoencoder.encoder(x_2)
     z = torch.stack([z_1 + (z_2 - z_1)*t for t in np.linspace(0, 1, n)])
     interpolate_list = autoencoder.decoder(z)
-    rnd = random.randint(1, 1000)
-    path = f"{os.environ['FILESDIR']}/data/vae/sample_{class_1}vs{class_2}_{rnd}"
-    save_image(interpolate_list, path + ".png")
+    # save interpolations
+    # get most recent file
+    path = f"{os.environ['FILESDIR']}/data/vae/"
+    files = os.listdir(path)
+    no = 1
+    if len(files) > 0:
+        files.sort(key=lambda x: os.path.getmtime(os.path.join(path, x)))
+        no = int(files[-1].split("_")[-1].split(".")[0]) + 1
+    path = f"{path}/sample_{class_1}vs{class_2}_{no}"
+    save_image(interpolate_list, path + ".png", nrow=10)
     torch.save(interpolate_list, f"{path}.pt")
     print(f" > saved interpolation to {path}")
+
+    return interpolate_list
 
 
 if __name__ == "__main__":
@@ -89,6 +98,7 @@ if __name__ == "__main__":
     class_1 = 1
     class_2 = 7
     n_interpolations = 10
+    classifier = 'cnn-2-1.88299'
     TRAIN = False
 
     # setup
@@ -98,10 +108,10 @@ if __name__ == "__main__":
     # LOAD data
     print(" > loading data ...")
     mnist_dataset = torchvision.datasets.MNIST(f'{os.environ["FILESDIR"]}/data',
-                                            transform=torchvision.transforms.Compose([
-                                             torchvision.transforms.ToTensor(),
-                                             torchvision.transforms.Normalize(
-                                                 (0.5,), (0.5,))]),
+                                                    transform=torchvision.transforms.Compose([
+                                                    torchvision.transforms.ToTensor(),
+                                                    torchvision.transforms.Normalize(
+                                                    (0.5,), (0.5,))]),
                                             download=True)
 
     # Filter the dataset to include only the selected classes
@@ -126,4 +136,11 @@ if __name__ == "__main__":
     x_1 = x[y == class_1][rnd_index].to(DEVICE) # find a 1
     x_2 = x[y == class_2][rnd_index].to(DEVICE) # find a 7
 
-    interpolate(vae, x_1, class_1, x_2, class_2, n=n_interpolations)
+    interpolate_list = interpolate(vae, x_1, class_1, x_2, class_2, n=n_interpolations)
+
+    # get classifier and visualize probabilities
+    print(" > calculating probabilities ...")
+    net, _, _, _ = construct_classifier_from_checkpoint(f"{os.environ['FILESDIR']}/models/{classifier}", device=DEVICE)
+    net.eval() 
+    preds = net(interpolate_list)
+    print(preds)
