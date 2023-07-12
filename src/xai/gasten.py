@@ -79,7 +79,7 @@ if __name__ == "__main__":
         config, config_run['id'], config_run['gasten']['epoch2'])
     netG, _, _, _ = construct_gan_from_checkpoint(gan_path, device=device)
     fixed_noise = torch.randn(
-        config['fixed-noise'], config["model"]["z_dim"], device=device) d
+        config['fixed-noise'], config["model"]["z_dim"], device=device)
 
     # get classifier
     net, _, _, _ = construct_classifier_from_checkpoint(config['train']['step-2']['classifier'][0], device=device)
@@ -96,12 +96,12 @@ if __name__ == "__main__":
                         (pred <= config_run['max_prob'])]
 
     # save images (locally)
-    save_image(images_sel, f"{config_run['image_path']}.png", nrow=10)
+    #save_image(images_sel, f"{config_run['image_path']}.png", nrow=10)
     torch.save(images_sel, f"{config_run['image_path']}.pt")
     # save images (wandb)
     wandb.log({"image": wandb.Image(images_sel)})
 
     print(
-        f"> Saved {images_sel.shape[0]} GASTeN images with probs between to {config_run['min_prob']} and {config_run['max_prob']} to {path}")
+        f"> Saved {images_sel.shape[0]} GASTeN images with probs between to {config_run['min_prob']} and {config_run['max_prob']} to {config_run['image_path']}")
 
     wandb.finish()

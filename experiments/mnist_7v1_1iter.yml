@@ -50,5 +50,6 @@ train:
     disc-iters: 1
     classifier: 
     - models/mnist.7v1/cnn-2-1.88299
+    - models/mnist.7v1/cnn-4-5.68766
     weight: 
     - 25

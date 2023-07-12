@@ -48,7 +48,7 @@ def get_saved_data(type_of_data, sample_no, batch_size, pos_class, neg_class):
     # get the images from the saved data
     dataset = torch.load(f"{os.environ['FILESDIR']}/data/{type_of_data}/sample_{neg_class}vs{pos_class}_{sample_no}.pt")
     # use data loader to find a batch of images
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
     # get first batch of images
     return next(iter(data_loader))
 
@@ -60,12 +60,10 @@ def calc_original(image, folder_path):
     # calculate
     original_image = np.transpose((image.cpu().detach().numpy() / 2) + 0.5, (1, 2, 0))
 
-    # visualize
-    viz.visualize_image_attr(None, original_image, method="original_image", title="Original Image")
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
-    plt.savefig(f"{folder_path}/original.png")
-    plt.close()
+    if folder_path is not None:
+        viz.visualize_image_attr(None, original_image, method="original_image", title="Original Image")
+        plt.savefig(f"{folder_path}/original.png")
+        plt.close()
 
     return original_image
     
@@ -80,14 +78,17 @@ def calc_saliency(net, input, original_image, folder_path, fig_tuple):
         ind (_type_): _description_
     """
     # calculate
-    saliency = Saliency(net)
-    grads = saliency.attribute(input)
+    with torch.no_grad():
+        saliency = Saliency(net)
+        grads = saliency.attribute(input)
+    
     grads_np = np.transpose(grads.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
 
-    # visualize
-    viz.visualize_image_attr(grads_np, original_image, method="blended_heat_map", sign="absolute_value", show_colorbar=True, title="Overlayed Gradient Magnitudes")
-    plt.savefig(f"{folder_path}/saliency.png")
-    plt.close()
+    if folder_path is not None:
+        # visualize
+        viz.visualize_image_attr(grads_np, original_image, method="blended_heat_map", sign="absolute_value", show_colorbar=True, title="Overlayed Gradient Magnitudes")
+        plt.savefig(f"{folder_path}/saliency.png")
+        plt.close()
 
     # all saliences
     viz.visualize_image_attr(grads_np, original_image, method="blended_heat_map", sign="absolute_value", show_colorbar=True, plt_fig_axis=fig_tuple)
@@ -105,15 +106,18 @@ def calc_integratedgrads(net, input, original_image, folder_path, fig_tuple):
         original_image (_type_): _description_
         folder_path (_type_): _description_
     """
-    ig = IntegratedGradients(net)
-    attr_ig, delta = ig.attribute(input, baselines=input * 0, return_convergence_delta=True, n_steps=200)
+    with torch.no_grad():
+        ig = IntegratedGradients(net)
+        attr_ig, delta = ig.attribute(input, baselines=input *0, return_convergence_delta=True, n_steps=300)
+
     attr_ig = np.transpose(attr_ig.squeeze(0).cpu().detach().numpy(), (1,2,0))
     print('Approximation delta: ', abs(delta))
     
-    # visualize
-    viz.visualize_image_attr(attr_ig, original_image, method="blended_heat_map", sign="all", show_colorbar=True, title="Overlayed Integrated Gradients")
-    plt.savefig(f"{folder_path}/integrated_grads.png")
-    plt.close()
+    if folder_path is not None:
+        # visualize
+        viz.visualize_image_attr(attr_ig, original_image, method="blended_heat_map", sign="all", show_colorbar=True, title="Overlayed Integrated Gradients")
+        plt.savefig(f"{folder_path}/integrated_grads.png")
+        plt.close()
 
     viz.visualize_image_attr(attr_ig, original_image, method="blended_heat_map", sign="all", show_colorbar=True, plt_fig_axis=fig_tuple)
 
@@ -125,10 +129,11 @@ def calc_integratedgrads_noise(net, input, original_image, folder_path):
     attr_ig_nt = np.transpose(attr_ig_nt.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
 
     # visualize
-    viz.visualize_image_attr(attr_ig_nt, original_image, method="blended_heat_map", sign="all", show_colorbar=True, outlier_perc=10,
-                             title="Overlayed Integrated Gradients \n with SmoothGrad Squared")
-    plt.savefig(f"{folder_path}/integrated_grads_noise.png")
-    plt.close()
+    if folder_path is not None:
+        viz.visualize_image_attr(attr_ig_nt, original_image, method="blended_heat_map", sign="all", show_colorbar=True, outlier_perc=10,
+                                title="Overlayed Integrated Gradients \n with SmoothGrad Squared")
+        plt.savefig(f"{folder_path}/integrated_grads_noise.png")
+        plt.close()
     
 
 def calc_gradientshap(net, input, original_image, folder_path, fig_tuple):
@@ -136,9 +141,10 @@ def calc_gradientshap(net, input, original_image, folder_path, fig_tuple):
     feature_imp_img = algorithm.attribute(input, baselines=torch.zeros_like(input))
     attr = feature_imp_img.squeeze(0).cpu().detach().numpy().reshape(28,28,1)
 
-    viz.visualize_image_attr(attr, original_image, method="blended_heat_map", sign="all", show_colorbar=True, title="Gradient SHAP")
-    plt.savefig(f"{folder_path}/gradientSHAP.png")
-    plt.close()
+    if folder_path is not None:
+        viz.visualize_image_attr(attr, original_image, method="blended_heat_map", sign="all", show_colorbar=True, title="Gradient SHAP")
+        plt.savefig(f"{folder_path}/gradientSHAP.png")
+        plt.close()
 
     viz.visualize_image_attr(attr, original_image, method="blended_heat_map", sign="all", show_colorbar=True, plt_fig_axis=fig_tuple)
 
@@ -148,10 +154,11 @@ def calc_deeplift(net, input, original_image, folder_path, fig_tuple):
     attr_dl = dl.attribute(input, baselines=input * 0)
     attr_dl = np.transpose(attr_dl.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
 
-    viz.visualize_image_attr(attr_dl, original_image, method="blended_heat_map",sign="all",show_colorbar=True, 
-                          title="Overlayed DeepLift")
-    plt.savefig(f"{folder_path}/deepLift.png")
-    plt.close()
+    if folder_path is not None:
+        viz.visualize_image_attr(attr_dl, original_image, method="blended_heat_map",sign="all",show_colorbar=True, 
+                            title="Overlayed DeepLift")
+        plt.savefig(f"{folder_path}/deepLift.png")
+        plt.close()
 
     viz.visualize_image_attr(attr_dl, original_image, method="blended_heat_map",sign="all",show_colorbar=True, plt_fig_axis=fig_tuple)
 
@@ -195,15 +202,16 @@ def calc_gradcam(net, layer_idx, input, original_image, folder_path):
 
     upsamp_attr_lgc = LayerAttribution.interpolate(attributions_lgc, input.shape[2:])
 
-    viz.visualize_image_attr_multiple(upsamp_attr_lgc[0].cpu().permute(1,2,0).detach().numpy(),
-                                      original_image,
-                                      ["original_image","blended_heat_map","masked_image"],
-                                      ["all","positive","positive"],
-                                      show_colorbar=True,
-                                      titles=["Original", "Positive Attribution", "Masked"],
-                                      )
-    plt.savefig(f"{folder_path}/layer{layer_idx}_gradcam_mult.png")
-    plt.close()
+    if folder_path is not None:
+        viz.visualize_image_attr_multiple(upsamp_attr_lgc[0].cpu().permute(1,2,0).detach().numpy(),
+                                        original_image,
+                                        ["original_image","blended_heat_map","masked_image"],
+                                        ["all","positive","positive"],
+                                        show_colorbar=True,
+                                        titles=["Original", "Positive Attribution", "Masked"],
+                                        )
+        plt.savefig(f"{folder_path}/layer{layer_idx}_gradcam_mult.png")
+        plt.close()
 
 def get_x_y(index, max_y):
     return index // max_y, index % max_y
@@ -227,6 +235,7 @@ if __name__ == "__main__":
     neg_class = config["dataset"]["binary"]["neg"]
     config_run={
         'batch_size': 10,
+        'save_internally': False,
         'classifier': config['train']['step-2']['classifier'][0].split("/")[-1],
     }
 
@@ -237,7 +246,7 @@ if __name__ == "__main__":
                group=config['name'],
                entity=os.environ['ENTITY'],
                job_type='xai',
-               name=f"{args.type_data}-{name}",
+               name=f"{config_run['classifier']}-{args.type_data}_{name}",
                config=config_run)
     
     # get data
@@ -267,30 +276,32 @@ if __name__ == "__main__":
         # predict
         pred = net(input)
         label = pos_class if pred >= 0.5 else neg_class
-        
+
         # prepare indexes and paths
         x, y = get_x_y(ind, config_run['batch_size'])
-        folder_path = f"{config['data-dir']}/xai/{config_run['classifier']}/{args.type_data}{name}/{ind}_pred_{label}_{math.floor(pred.item()*100)}"
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
-        print(f" > Saving to {folder_path}")
+        folder_path = None
+        if config_run['save_internally']:
+            folder_path = f"{config['data-dir']}/xai/{config_run['classifier']}/{args.type_data}{name}/{ind}_pred_{label}_{math.floor(pred.item()*100)}"
+            if not os.path.exists(folder_path):
+                os.makedirs(folder_path)
+            print(f" > Saving to {folder_path}")
 
         # calculate interpretable representation
         original_image = calc_original(image, folder_path)
         viz.visualize_image_attr(None, original_image, method="original_image", title=f"{pred.item():.3f}", plt_fig_axis=(fig_ori, axes_ori[x][y] if x > 1 else axes_ori[y]))
-        calc_saliency(net, input, original_image, folder_path, (fig_sal, axes_sal[x][y] if x > 1 else axes_sal[y]))
         net.zero_grad()
+        #calc_saliency(net, input, original_image, folder_path, (fig_sal, axes_sal[x][y] if x > 1 else axes_sal[y]))
         calc_integratedgrads(net, input, original_image, folder_path, (fig_ig, axes_ig[x][y] if x > 1 else axes_ig[y]))
-        calc_integratedgrads_noise(net, input, original_image, folder_path)
+        #calc_integratedgrads_noise(net, input, original_image, folder_path)
         calc_gradientshap(net, input, original_image, folder_path, (fig_shap, axes_shap[x][y] if x > 1 else axes_shap[y]))
         calc_deeplift(net, input, original_image, folder_path, (fig_dl, axes_dl[x][y] if x > 1 else axes_dl[y]))
-        calc_gradcam(net, 0, input, original_image, folder_path)
-        calc_gradcam(net, 3, input, original_image, folder_path)
-        calc_gradcam(net, 7, input, original_image, folder_path)
+        #calc_gradcam(net, 0, input, original_image, folder_path)
+        #calc_gradcam(net, 3, input, original_image, folder_path)
+        #calc_gradcam(net, 7, input, original_image, folder_path)
 
     # save images to wandb
     wandb.log({"image_xai": wandb.Image(fig_ori, caption="Original Images")})
-    wandb.log({"image_xai": wandb.Image(fig_sal, caption="Saliency Method")})
+    #wandb.log({"image_xai": wandb.Image(fig_sal, caption="Saliency Method")})
     wandb.log({"image_xai": wandb.Image(fig_ig, caption="Integrated Gradients Method")})
     wandb.log({"image_xai": wandb.Image(fig_shap, caption="Gradient SHAP Method")})
     wandb.log({"image_xai": wandb.Image(fig_dl, caption="DeepLift Method")})

@@ -1,4 +1,4 @@
-import torch;
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils
@@ -11,8 +11,11 @@ import random
 from dotenv import load_dotenv
 import os
 from src.utils.checkpoint import construct_classifier_from_checkpoint
+import argparse
+from src.utils.config import read_config
+import wandb
+from src.datasets import load_dataset
 
-DEVICE= 'cuda:1'
 
 class Decoder(nn.Module):
     def __init__(self, latent_dims):
@@ -26,15 +29,15 @@ class Decoder(nn.Module):
         return z.reshape((-1, 1, 28, 28))
     
 class VariationalEncoder(nn.Module):
-    def __init__(self, latent_dims):
+    def __init__(self, latent_dims, device):
         super(VariationalEncoder, self).__init__()
         self.linear1 = nn.Linear(784, 512)
         self.linear2 = nn.Linear(512, latent_dims)
         self.linear3 = nn.Linear(512, latent_dims)
         
         self.N = torch.distributions.Normal(0, 1)
-        self.N.loc = self.N.loc.to(DEVICE) # hack to get sampling on the GPU
-        self.N.scale = self.N.scale.to(DEVICE)
+        self.N.loc = self.N.loc.to(device) # hack to get sampling on the GPU
+        self.N.scale = self.N.scale.to(device)
         self.kl = 0
     
     def forward(self, x):
@@ -47,9 +50,9 @@ class VariationalEncoder(nn.Module):
         return z
     
 class VariationalAutoencoder(nn.Module):
-    def __init__(self, latent_dims):
+    def __init__(self, latent_dims, device):
         super(VariationalAutoencoder, self).__init__()
-        self.encoder = VariationalEncoder(latent_dims)
+        self.encoder = VariationalEncoder(latent_dims, device)
         self.decoder = Decoder(latent_dims)
     
     def forward(self, x):
@@ -57,11 +60,11 @@ class VariationalAutoencoder(nn.Module):
         return self.decoder(z)
     
 
-def train(autoencoder, data, epochs=20):
+def train(autoencoder, data, device, epochs=20,):
     opt = torch.optim.Adam(autoencoder.parameters())
     for epoch in range(epochs):
         for x, y in data:
-            x = x.to(DEVICE) # GPU
+            x = x.to(device) 
             opt.zero_grad()
             x_hat = autoencoder(x)
             loss = ((x - x_hat)**2).sum() + autoencoder.encoder.kl
@@ -69,81 +72,96 @@ def train(autoencoder, data, epochs=20):
             opt.step()
     return autoencoder
 
-def interpolate(autoencoder, x_1, class_1, x_2, class_2, n=12):
+def interpolate(autoencoder, x_1, x_2, n=10):
     # create interpolations
     z_1 = autoencoder.encoder(x_1)
     z_2 = autoencoder.encoder(x_2)
     z = torch.stack([z_1 + (z_2 - z_1)*t for t in np.linspace(0, 1, n)])
     interpolate_list = autoencoder.decoder(z)
-    # save interpolations
-    # get most recent file
-    path = f"{os.environ['FILESDIR']}/data/vae/"
-    files = os.listdir(path)
-    no = 1
-    if len(files) > 0:
-        files.sort(key=lambda x: os.path.getmtime(os.path.join(path, x)))
-        no = int(files[-1].split("_")[-1].split(".")[0]) + 1
-    path = f"{path}/sample_{class_1}vs{class_2}_{no}"
-    save_image(interpolate_list, path + ".png", nrow=10)
-    torch.save(interpolate_list, f"{path}.pt")
-    print(f" > saved interpolation to {path}")
-
     return interpolate_list
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", dest="config_path", help="Config file", default='experiments/mnist_7v1_1iter.yml')
+    parser.add_argument("--train", dest="train", help="Train VAE", type=argparse.BooleanOptionalAction, default=False)
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
+    ##
+    # SETUP
+    ##
     load_dotenv()
+    args = parse_args()
+    config = read_config(args.config_path)
 
-    # things that could be arguments
-    class_1 = 1
-    class_2 = 7
-    n_interpolations = 10
-    classifier = 'cnn-2-1.88299'
-    TRAIN = False
+    device = torch.device(config["device"])
+    pos_class = config["dataset"]["binary"]["pos"]
+    neg_class = config["dataset"]["binary"]["neg"]
 
-    # setup
-    latent_dims = 2
-    batch_size = 128
+    config_run={
+        'classifier': config['train']['step-2']['classifier'][0].split("/")[-1],
+        'n_interpolations': 10,
+        'latent_dims': 2,
+        'vae_path': f"{os.environ['FILESDIR']}/models/vae/vae_{neg_class}vs{pos_class}.pt"
+    }
+
+    # get name
+    path = f"{os.environ['FILESDIR']}/data/vae/"
+    files = os.listdir(path)
+    name = 1
+    if len(files) > 0:
+        files.sort(key=lambda x: os.path.getmtime(os.path.join(path, x)))
+        name = int(files[-1].split("_")[-1].split(".")[0]) + 1
+
+    # start experiment
+    wandb.init(project=config['project'],
+               dir=os.environ['FILESDIR'],
+               group=config['name'],
+               entity=os.environ['ENTITY'],
+               job_type='vae_interpolation',
+               name=f"{config_run['classifier']}-no-{name}",
+               config=config_run)
 
     # LOAD data
-    print(" > loading data ...")
-    # TODO use the same data as the classifier
-    # dataset, _, _ = load_dataset(dataset_name, data_dir, pos_class, neg_class, False)
+    print(" > loading data ...") 
+    dataset, _, _ = load_dataset(config["dataset"]["name"], config["data-dir"], pos_class, neg_class)
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size=128, shuffle=True, num_workers=4)
 
-    mnist_dataset = torchvision.datasets.MNIST(f'{os.environ["FILESDIR"]}/data',
-                                                    transform=torchvision.transforms.Compose([
-                                                    torchvision.transforms.ToTensor(),
-                                                    torchvision.transforms.Normalize(
-                                                    (0.5,), (0.5,))]),
-                                            download=True)
-
-    # Filter the dataset to include only the selected classes
-    filtered_indices = torch.where((mnist_dataset.targets == class_1) | (mnist_dataset.targets == class_2))[0]
-    filtered_dataset = torch.utils.data.Subset(mnist_dataset, filtered_indices)
-
-    # Create a data loader for the filtered dataset
-    data_loader = torch.utils.data.DataLoader(filtered_dataset, batch_size=batch_size, shuffle=True)
-
-    vae_path = os.environ['FILESDIR'] + f"/models/vae/vae_{class_1}vs{class_2}.pt"
-    if os.path.exists(vae_path) & (TRAIN == False):
-        vae = torch.load(vae_path)
+    # train VAE
+    if args.train is False:
+        vae = torch.load(config_run['vae_path'])
     else:
         print(" > training VAE ...")
-        vae = VariationalAutoencoder(latent_dims).to(DEVICE) # GPU
-        vae = train(vae, data_loader)
-        torch.save(vae, vae_path)
+        vae = VariationalAutoencoder(config_run['latent_dims'], device).to(device)
+        vae = train(vae, data_loader, device)
+        torch.save(vae, config_run['vae_path'])
 
     print(" > creating interpolations ...")
-    x, y = next(data_loader.__iter__()) # hack to grab a batch
-    rnd_index = random.randint(0, int(batch_size/10))
-    x_1 = x[y == class_1][rnd_index].to(DEVICE) # find a 1
-    x_2 = x[y == class_2][rnd_index].to(DEVICE) # find a 7
+    x, y = next(data_loader.__iter__())
+    x_1 = x[y == 0][0].to(device)
+    x_2 = x[y == 1][0].to(device)
 
-    interpolate_list = interpolate(vae, x_1, class_1, x_2, class_2, n=n_interpolations)
+    interpolate_list = interpolate(vae, x_1, x_2, config_run['n_interpolations'])
 
     # get classifier and visualize probabilities
     print(" > calculating probabilities ...")
-    net, _, _, _ = construct_classifier_from_checkpoint(f"{os.environ['FILESDIR']}/models/{classifier}", device=DEVICE)
-    net.eval() 
-    preds = net(interpolate_list)
-    print(preds)
+    net, _, _, _ = construct_classifier_from_checkpoint(f"{config['train']['step-2']['classifier'][0]}", device=device)
+    with torch.no_grad():
+        net.eval() 
+        preds = net(interpolate_list).tolist()
+
+    # save interpolations
+    path = f"{os.environ['FILESDIR']}/data/vae/sample_{neg_class}vs{pos_class}_{name}"
+    #save_image(interpolate_list, path + ".png", nrow=10)
+    torch.save(interpolate_list, f"{path}.pt")
+    print(f" > saved interpolation to {path}")
+
+    # save to wandb
+    wandb.log({"image_vae": wandb.Image(interpolate_list)})
+
+    wandb.define_metric("prediction")
+    for i, pred in enumerate(preds):
+        wandb.log({"prediction": pred}, step=i)
+
+    wandb.finish()
