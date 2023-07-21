@@ -10,7 +10,6 @@ Some relevant info:
 import os
 import torch
 import wandb
-from torchvision.utils import save_image
 from dotenv import load_dotenv
 from src.utils.config import read_config
 from src.utils.checkpoint import construct_classifier_from_checkpoint, construct_gan_from_checkpoint
@@ -42,7 +41,7 @@ def get_experiment_number():
 
 
 if __name__ == "__main__":
-    ### 
+    ###
     # SETUP
     ###
     load_dotenv()
@@ -62,7 +61,7 @@ if __name__ == "__main__":
             'epoch1': epoch1,
             'epoch2': 40,
         },
-        'image_path' : f"{os.environ['FILESDIR']}/data/gasten/sample_{config['dataset']['binary']['neg']}vs{config['dataset']['binary']['pos']}_{gasten_name}"
+        'image_path': f"{os.environ['FILESDIR']}/data/gasten/sample_{config['dataset']['binary']['neg']}vs{config['dataset']['binary']['pos']}_{gasten_name}"
     }
 
     # start experiment
@@ -82,8 +81,9 @@ if __name__ == "__main__":
         config['fixed-noise'], config["model"]["z_dim"], device=device)
 
     # get classifier
-    net, _, _, _ = construct_classifier_from_checkpoint(config['train']['step-2']['classifier'][0], device=device)
-    
+    net, _, _, _ = construct_classifier_from_checkpoint(
+        config['train']['step-2']['classifier'][0], device=device)
+
     # create fake images and apply classifier
     with torch.no_grad():
         netG.eval()
@@ -96,7 +96,7 @@ if __name__ == "__main__":
                         (pred <= config_run['max_prob'])]
 
     # save images (locally)
-    #save_image(images_sel, f"{config_run['image_path']}.png", nrow=10)
+    # save_image(images_sel, f"{config_run['image_path']}.png", nrow=10)
     torch.save(images_sel, f"{config_run['image_path']}.pt")
     # save images (wandb)
     wandb.log({"image": wandb.Image(images_sel)})

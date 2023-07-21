@@ -42,6 +42,8 @@ Run GASTeN to create images in the bounday between **1** and **7**.
 
 `python -m src --config experiments/mnist_7v1.yml`
 
-Train one GASTeN:
+Run xAI:
 
-`python -m src --config experiments/mnist_7v1_1iter.yml`
+`python -m src.xai.run_xai --type gasten --no 5`
+`python -m src.xai.run_xai --type vae --no 7`
+`python -m src.xai.run_xai --type test`

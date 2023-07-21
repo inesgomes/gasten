@@ -290,6 +290,7 @@ def main():
     print(test_acc)
     print(test_loss)
 
+# TODO put all this in wandb
 
 if __name__ == '__main__':
     main()
