@@ -14,7 +14,7 @@ parser.add_argument('--out-dir', dest='out_dir',
 parser.add_argument('--dataset', dest='dataset',
                     default='mnist', help='Dataset (mnist or fashion-mnist or cifar10)')
 parser.add_argument('--n-classes', dest='n_classes',
-                    default=10, help='Number of classes in dataset')
+                    default=2, help='Number of classes in dataset')
 parser.add_argument('--device', type=str, default='cpu',
                     help='Device to use. Like cuda, cuda:0 or cpu')
 parser.add_argument('--batch-size', dest='batch_size',

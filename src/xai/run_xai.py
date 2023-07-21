@@ -9,10 +9,11 @@ Returns:
 """
 import os
 import math
-import wandb
-import torch
 import argparse
 import random
+from itertools import zip_longest
+import wandb
+import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from captum.attr import visualization as viz
@@ -20,9 +21,10 @@ from captum.attr import Saliency, IntegratedGradients, DeepLift, NoiseTunnel, Gr
 from dotenv import load_dotenv
 from src.utils.config import read_config
 from src.datasets import load_dataset
+from src.datasets.datasets import get_mnist
 from src.utils.checkpoint import construct_classifier_from_checkpoint
 import pandas as pd
-from itertools import zip_longest
+import plotly.express as px
 
 
 def type_data_values(value):
@@ -45,14 +47,19 @@ def parse_args():
                         help="Type of data [gasten, vae, test]", type=type_data_values)
     parser.add_argument("--no", dest="sample_no",
                         help="Sample number (only for VAE or GASTeN)", type=sample_no_positive)
+    parser.add_argument("--random", dest="random",
+                        help="If the test set is random or only the selected digits", action="store_true")
     return parser.parse_args()
 
 
-def get_test_mnist_data(dataset_name, data_dir, batch_size, pos_class, neg_class):
+def get_test_mnist_data(dataset_name, data_dir, batch_size, pos_class=None, neg_class=None):
     # this is the original dataset -> may try to use this initially
     # using test data
-    dataset, _, _ = load_dataset(
-        dataset_name, data_dir, pos_class, neg_class, False)
+    if (pos_class is None) or (neg_class is None):
+        dataset = get_mnist(data_dir, train=False)
+    else:
+        dataset, _, _ = load_dataset(
+            dataset_name, data_dir, pos_class, neg_class, False)
     # use data loader to find a batch of images
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=batch_size, shuffle=True)
@@ -192,15 +199,21 @@ def calc_deeplift(net, input, reference_input, original_image, folder_path, fig_
         plt.savefig(f"{folder_path}/deepLift.png")
         plt.close()
 
-    print("DeepLift sum of attributes: ", attr_dl.sum())
+    # visualize images
+    viz.visualize_image_attr(attr_dl, original_image, method="blended_heat_map",
+                             sign="all", show_colorbar=True, plt_fig_axis=fig_tuple)
 
     # https://plotly.com/python/ecdf-plots/
     # https://matplotlib.org/devdocs/gallery/statistics/histogram_cumulative.html#sphx-glr-gallery-statistics-histogram-cumulative-py
     # transform tensor in dataframe
-    attr_df_flat = attr_dl.flatten()
+    attr_df_flat = np.round(attr_dl.flatten(), decimals=4)
+    print("DeepLift sum of attributes: ", attr_df_flat.sum())
+
+    print(
+        f"  zeros: {len(attr_df_flat[attr_df_flat==0])/len(attr_df_flat):.2%}")
 
     # create dataframe with two columsn, one with the positive and other with the negative values
-    pos = attr_df_flat[attr_df_flat >= 0]
+    pos = attr_df_flat[attr_df_flat > 0]
     neg = np.abs(attr_df_flat[attr_df_flat < 0])
     df = pd.DataFrame(
         list(zip_longest(pos, neg, fillvalue=None)), columns=['pos', 'neg'])
@@ -210,10 +223,11 @@ def calc_deeplift(net, input, reference_input, original_image, folder_path, fig_
             cumulative=-1, label="pos", color="green")
     ax.hist(df['neg'], 50, density=True, histtype="step",
             cumulative=-1, label="neg", color="red")
-    # fig_plotly = px.ecdf(df, x=['pos', 'neg'])
 
-    viz.visualize_image_attr(attr_dl, original_image, method="blended_heat_map",
-                             sign="all", show_colorbar=True, plt_fig_axis=fig_tuple)
+    # correct ecdf
+    wandb.log({"ecdf_plotly": px.ecdf(
+        df, x=['pos', 'neg'], ecdfmode="reversed")})
+
 
 
 def calc_occlusion(net, input, original_image, folder_path):
@@ -303,18 +317,24 @@ if __name__ == "__main__":
     # start experiment
     name = args.sample_no if args.type_data != "test" else random.randint(
         1, 10000)
+    type_name = "test_random" if (args.random) & (
+        args.type_data == "test") else args.type_data
     wandb.init(project=config['project'],
                dir=os.environ['FILESDIR'],
                group=config['name'],
                entity=os.environ['ENTITY'],
                job_type='xai',
-               name=f"{config_run['classifier']}-{args.type_data}_{name}_v2",
+               name=f"{config_run['classifier']}-{type_name}_{name}_v2",
                config=config_run)
 
     # get data
     if args.type_data == "test":
-        images = get_test_mnist_data(
-            config["dataset"]["name"], config["data-dir"], config_run['batch_size'], pos_class, neg_class)
+        if args.random:
+            images = get_test_mnist_data(
+                config["dataset"]["name"], config["data-dir"], config_run['batch_size'])
+        else:
+            images = get_test_mnist_data(
+                config["dataset"]["name"], config["data-dir"], config_run['batch_size'], pos_class, neg_class)
     else:
         images = get_saved_data(
             args.type_data, args.sample_no, config_run['batch_size'], pos_class, neg_class)
@@ -327,10 +347,11 @@ if __name__ == "__main__":
     # prepare the wandb plots
     max_y = 5
     max_x, _ = get_x_y(images.shape[0], max_y)
-    fig_ori, axes_ori = plt.subplots(max_x, max_y, figsize=(16, 3*max_x))
-    fig_shap, axes_shap = plt.subplots(max_x, max_y, figsize=(16, 3*max_x))
-    fig_dl, axes_dl = plt.subplots(max_x, max_y, figsize=(16, 3*max_x))
-    fig_ecdf, axes_ecdf = plt.subplots(max_x, max_y, figsize=(16, 3*max_x))
+    fig_ori, axes_ori = plt.subplots(max_x, max_y, figsize=(12, 2*max_x))
+    fig_shap, axes_shap = plt.subplots(max_x, max_y, figsize=(12, 2*max_x))
+    fig_dl, axes_dl = plt.subplots(max_x, max_y, figsize=(12, 2*max_x))
+    fig_ecdf, axes_ecdf = plt.subplots(
+        max_x, max_y, figsize=(12, 2*max_x), sharex=True, sharey=True)
 
     for ind in range(images.shape[0]):
         # prepare data to make predictions
@@ -338,7 +359,8 @@ if __name__ == "__main__":
         input = image.unsqueeze(0)
         # input.requires_grad = True
         background = 0 if args.type_data == "vae" else -1
-        reference_input = torch.full(image.shape, background).unsqueeze(0).to(device)
+        reference_input = torch.full(
+            image.shape, background).unsqueeze(0).to(device)
 
         # predict
         pred = net(input)
@@ -356,6 +378,7 @@ if __name__ == "__main__":
 
         # calculate interpretable representation
         original_image = calc_original(image, folder_path)
+
         viz.visualize_image_attr(None, original_image, method="original_image",
                                  title=f"{pred.item():.3f}", plt_fig_axis=(fig_ori, axes_ori[x][y]))
         net.zero_grad()
@@ -372,8 +395,11 @@ if __name__ == "__main__":
     wandb.log({"image_xai": wandb.Image(
         fig_shap, caption="Gradient SHAP Method")})
     wandb.log({"image_xai": wandb.Image(fig_dl, caption="DeepLift Method")})
+    fig_ecdf.supxlabel("DeepLIFT attributions (absolute value)")
+    fig_ecdf.supylabel("Likelihood of attribution")
+    fig_ecdf.tight_layout()
     wandb.log({"ecdf": wandb.Image(
-        fig_ecdf, caption="Complementary cumulative distributions for DeepLIFT Attributions")})
+        fig_ecdf, caption="Complementary cumulative distributions for positive and negative DeepLIFT attributions")})
 
     # close wandb
     wandb.finish()

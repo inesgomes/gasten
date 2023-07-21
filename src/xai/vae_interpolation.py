@@ -20,7 +20,6 @@ plt.rcParams['figure.dpi'] = 200
 
 class Decoder(nn.Module):
     """ Decoder for the VAE """
-
     def __init__(self, latent_dims):
         super(Decoder, self).__init__()
         self.linear1 = nn.Linear(latent_dims, 512)
