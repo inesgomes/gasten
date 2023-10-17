@@ -96,7 +96,6 @@ if __name__ == "__main__":
                         (pred <= config_run['max_prob'])]
 
     # save images (locally)
-    # save_image(images_sel, f"{config_run['image_path']}.png", nrow=10)
     torch.save(images_sel, f"{config_run['image_path']}.pt")
     # save images (wandb)
     wandb.log({"image": wandb.Image(images_sel)})

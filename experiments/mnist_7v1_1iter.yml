@@ -3,7 +3,7 @@ name: mnist-7v1
 out-dir: out
 data-dir: data
 test-noise: data/z/z_2000_64
-fixed-noise: 2000
+fixed-noise: 10000
 
 device: cuda:1
 num-workers: 6
@@ -15,6 +15,7 @@ num-runs: 1
 dataset:
   name: mnist
   binary:
+  
     pos: 7
     neg: 1
 

@@ -95,10 +95,10 @@ def viz_ecdf(attr, ax, ax_diff):
         list(zip_longest(pos, neg, fillvalue=None)), columns=['pos', 'neg'])
 
     n1, bins, _ = ax.hist(df['pos'], 80, density=True, histtype="step",
-            cumulative=-1, label="pos", color="green")
-    
+                          cumulative=-1, label="pos", color="green")
+
     n2, _, _ = ax.hist(df['neg'], bins, density=True, histtype="step",
-            cumulative=-1, label="neg", color="red")
+                       cumulative=-1, label="neg", color="red")
 
     area = abs(n1-n2).sum()
     ax_diff.hist(n1-n2, bins, histtype="stepfilled")
@@ -174,7 +174,8 @@ def calc_integratedgrads_noise(net, input, reference_input, original_image, fig_
     nt = NoiseTunnel(ig)
     attr_ig_nt = nt.attribute(input, baselines=reference_input,
                               nt_type='smoothgrad_sq', nt_samples=300, stdevs=0.2)
-    attr_ig_nt = np.transpose(attr_ig_nt.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
+    attr_ig_nt = np.transpose(attr_ig_nt.squeeze(
+        0).cpu().detach().numpy(), (1, 2, 0))
 
     viz.visualize_image_attr(attr_ig_nt, original_image, method="masked_image",
                              sign="all", show_colorbar=True, plt_fig_axis=fig_tuple)
@@ -205,14 +206,18 @@ def calc_deeplift(net, input, reference_input, original_image, fig_tuple):
 
     return attr_dl
 
+
 def calc_gradcam_1(net, input, reference_input, original_image, fig_tuple):
     return calc_gradcam(net, input, 1, original_image, fig_tuple)
+
 
 def calc_gradcam_3(net, input, reference_input, original_image, fig_tuple):
     return calc_gradcam(net, input, 3, original_image, fig_tuple)
 
+
 def calc_gradcam_5(net, input, reference_input, original_image, fig_tuple):
     return calc_gradcam(net, input, 5, original_image, fig_tuple)
+
 
 def calc_gradcam_7(net, input, reference_input, original_image, fig_tuple):
     return calc_gradcam(net, input, 7, original_image, fig_tuple)
@@ -235,7 +240,7 @@ def calc_gradcam(net, input, layer_idx, original_image, fig_tuple):
 
     viz.visualize_image_attr(attr_lgc, original_image, method="blended_heat_map",
                              sign="all", show_colorbar=True, plt_fig_axis=fig_tuple)
-    
+
     return attr_lgc
 
 
@@ -249,10 +254,10 @@ def calc_occlusion(net, input, reference_input, original_image, fig_tuple):
                                            baselines=reference_input)
     attr = np.transpose(attributions_occ.squeeze(
         0).cpu().detach().numpy(), (1, 2, 0))
-    
+
     viz.visualize_image_attr(attr, original_image, method="blended_heat_map",
-                                sign="all", show_colorbar=True, plt_fig_axis=fig_tuple)
-    
+                             sign="all", show_colorbar=True, plt_fig_axis=fig_tuple)
+
     return attr
 
 
@@ -292,7 +297,7 @@ if __name__ == "__main__":
                group=config['name'],
                entity=os.environ['ENTITY'],
                job_type='xai',
-               name=f"{config_run['classifier']}-{type_name}_{name}_tst",
+               name=f"{config_run['classifier']}-{type_name}_{name}_v3",
                config=config_run)
 
     # get data
@@ -320,7 +325,7 @@ if __name__ == "__main__":
     dict = {
         'original': calc_original,
         'saliency': calc_saliency,
-        #'integratedgrads': calc_integratedgrads,
+        # 'integratedgrads': calc_integratedgrads,
         'gradientshap': calc_gradientshap,
         'deeplift': calc_deeplift,
         'gradcam_1': calc_gradcam_1,
@@ -350,9 +355,9 @@ if __name__ == "__main__":
         # prepare plots
         fig, axes = plt.subplots(max_x, max_y, figsize=(12, 2*max_x))
         if name not in not_ecdf_methods:
-             fig_ecdf, axes_ecdf = plt.subplots(
+            fig_ecdf, axes_ecdf = plt.subplots(
                 max_x, max_y, figsize=(12, 2*max_x), sharex=True, sharey=True)
-             fig_ecdf_diff, axes_ecdf_diff = plt.subplots(
+            fig_ecdf_diff, axes_ecdf_diff = plt.subplots(
                 max_x, max_y, figsize=(12, 2*max_x), sharex=True, sharey=True)
 
         areas = []
@@ -364,8 +369,8 @@ if __name__ == "__main__":
                           original_images[ind], (fig, axes[x][y]))
             # calculate ecdf
             if name not in not_ecdf_methods:
-               area = viz_ecdf(attr, axes_ecdf[x][y], axes_ecdf_diff[x][y])
-               areas.append(area)
+                area = viz_ecdf(attr, axes_ecdf[x][y], axes_ecdf_diff[x][y])
+                areas.append(area)
             del attr
 
         # save images and ecdf to wandb
@@ -375,8 +380,10 @@ if __name__ == "__main__":
             fig_ecdf.supxlabel(f"{name} attributions (absolute value)")
             fig_ecdf.supylabel("Likelihood of attribution")
             fig_ecdf.tight_layout()
-            wandb.log({"ecdf": wandb.Image(fig_ecdf, caption=f"Complementary cumulative distributions for positive and negative {name} attributions")})
-            wandb.log({"ecdf_diff": wandb.Image(fig_ecdf_diff, caption=f"Area under positive and negative {name} attributions")})            
+            wandb.log({"ecdf": wandb.Image(
+                fig_ecdf, caption=f"Complementary cumulative distributions for positive and negative {name} attributions")})
+            wandb.log({"ecdf_diff": wandb.Image(
+                fig_ecdf_diff, caption=f"Area under positive and negative {name} attributions")})
             del fig_ecdf, axes_ecdf, fig_ecdf_diff, axes_ecdf_diff
 
             # check correlation between areas and predictions
