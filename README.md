@@ -38,12 +38,21 @@ ENTITY=<wandb entity to track experiments>
 
 ### GASTeN
 
-Run GASTeN to create images in the bounday between **1** and **7**.
+Run GASTeN to create images in the boundary between **1** and **7**.
 
 `python -m src --config experiments/mnist_7v1.yml`
 
-Run xAI:
+### Interpretability module
 
-`python -m src.xai.run_xai --type gasten --no 5`
-`python -m src.xai.run_xai --type vae --no 7`
-`python -m src.xai.run_xai --type test`
+Run saliency_maps:
+
+`python -m src.xai.saliency_maps --type gasten --no 5`
+`python -m src.xai.saliency_maps --type vae --no 7`
+`python -m src.xai.saliency_maps --type test`
+
+Run clustering:
+
+`python -m src.xai.clustering --config experiments/patterns/mnist_7v1.yml --run_id 2g8vw96h --epoch 10`
+`python -m src.xai.clustering --config experiments/patterns/mnist_5v3.yml --run_id t7twxshj --epoch 10`
+`python -m src.xai.clustering --config experiments/patterns/mnist_8v0.yml --run_id 2fr3inkm --epoch 10`
+`python -m src.xai.clustering --config experiments/patterns/mnist_9v4.yml --run_id 14mxbs2n --epoch 10`
