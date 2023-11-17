@@ -21,6 +21,7 @@ from pyclustering.cluster.xmeans import xmeans
 from scipy.spatial.distance import cdist
 import math
 from tqdm import tqdm
+from torch.utils.data import TensorDataset, DataLoader
 
 
 def get_gasten_info(config):
@@ -95,10 +96,7 @@ def create_cluster_image():
     # read configs
     config = read_config(args.config)
     device = config["device"]
-    pos_class = config["dataset"]["binary"]["pos"]
-    neg_class = config["dataset"]["binary"]["neg"]
     batch_size = config['train']['step-2']['batch-size']
-    num_workers = config['num-workers']
     n_images = config['fixed-noise']
     # prepare wandb info
     dataset_id = datetime.now().strftime("%b%dT%H-%M")
@@ -128,7 +126,6 @@ def create_cluster_image():
     gan_path = get_gan_path(
         config, args.run_id, config_run['gasten']['epoch2'])
     netG, _, _, _ = construct_gan_from_checkpoint(gan_path, device=device)
-    test_noise = torch.randn(n_images, config["model"]["z_dim"], device=device)
 
     # get classifier
     C, _, _, _ = construct_classifier_from_checkpoint(
@@ -142,21 +139,18 @@ def create_cluster_image():
     fm_fn, dims = fid.get_inception_feature_map_fn(device)
     fid_metric = fid.FID(fm_fn, dims, n_images, mu, sigma, device=device)
 
-    # create fake images in batches
-    start_idx = 0
-    num_batches = math.floor(n_images / batch_size)
+    # create fake images
+    test_noise = torch.randn(n_images, config["model"]["z_dim"], device=device)
+    noise_loader = DataLoader(TensorDataset(test_noise), batch_size=batch_size, shuffle=False)
     images_array = []
-    for _ in tqdm(range(num_batches), desc="Evaluating fake images"):
-        real_size = min(batch_size, n_images - start_idx)
-        batch_z = test_noise[start_idx:start_idx + real_size]
-        
+    for idx, batch in enumerate(tqdm(noise_loader, desc='Evaluating fake images')):
         with torch.no_grad():
-            netG.to(device)
             netG.eval()
-            batch_images = netG(batch_z.to(device))
-
+            batch_images = netG(*batch)
+        
         # calculate FID score - all images
-        fid_metric.update(batch_images, (start_idx, real_size))
+        max_size = min(idx*batch_size, n_images)
+        fid_metric.update(batch_images, (idx*batch_size, max_size))
         images_array.append(batch_images)
 
     # FID for fake images
@@ -165,7 +159,6 @@ def create_cluster_image():
 
     # Concatenate batches into a single array
     images = torch.cat(images_array, dim=0)
-    n_images = images.shape[0]
 
     # apply classifier to fake images
     with torch.no_grad():
@@ -185,12 +178,10 @@ def create_cluster_image():
     wandb.log({"n_ambiguous_images": n_amb_img})
 
     # calculate FID score in batches - ambiguous images
-    start_idx = 0
-    num_batches = math.ceil(n_amb_img / batch_size)
-    for _ in tqdm(range(num_batches), desc="Evaluating fake ambiguous images"):
-        real_size = min(batch_size, n_amb_img - start_idx)
-        batch_z = images_mask[start_idx:start_idx + real_size]
-        fid_metric.update(batch_z, (start_idx, real_size))
+    image_loader = DataLoader(TensorDataset(images_mask), batch_size=batch_size, shuffle=False)
+    for idx, batch in enumerate(tqdm(image_loader, desc='Evaluating ambiguous fake images')):
+        max_size = min(idx*batch_size, n_images)
+        fid_metric.update(*batch, (idx*batch_size, max_size))
     
     wandb.log({"fid_score_ambiguous": fid_metric.finalize()})
     fid_metric.reset()
@@ -230,25 +221,23 @@ def create_cluster_image():
             # start wandb
             config_run['clustering_method'] = cl_name
             config_run['reduce_method'] = red_name
+
+            job_name = f"{cl_name}_{red_name}" if red_name != "None" else cl_name
             wandb.init(project=config['project'],
                 dir=os.environ['FILESDIR'],
                 group=config['name'],
                 entity=os.environ['ENTITY'],
-                job_type=f'step-4-clustering_{cl_name}',
+                job_type=f'step-4-clustering_{job_name}',
                 name=f"{dataset_id}_v2",
                 config=config_run)
             
             # apply reduction method
-            if red_name != "None":
-                embeddings_red = red_method.fit_transform(embeddings_f)
-                cl_name = f"{cl_name}_{red_name}"
-            else:
-                embeddings_red = embeddings_f
+            embeddings_red = red_method.fit_transform(embeddings_f) if red_name != "None" else embeddings_f
 
             # TODO hyperparameter optimization
             
             # if string includes 'kmeans' then apply xmeans
-            if 'kmeans' in cl_name:
+            if cl_name == 'kmeans' :
                 # define here the instance
                 cl_method = xmeans(embeddings_red, k_max=15)
                 cl_method.process()
@@ -277,7 +266,7 @@ def create_cluster_image():
                     if cl_label >= 0:
                         mask = np.full(n_images, False)
                         mask[cl_examples['original_pos']] = True
-                        wandb.log({"cluster_images": wandb.Image(images[mask], caption=f"{cl_name} - {cl_label} (N = {cl_examples.shape[0]}))")})
+                        wandb.log({"cluster_images": wandb.Image(images[mask], caption=f"{job_name} | Lablel {cl_label} | (N = {cl_examples.shape[0]})")})
 
                 # get prototypes of each cluster
                 proto_idx = None
@@ -288,21 +277,21 @@ def create_cluster_image():
                     proto_idx = cl_method.core_sample_indices_
                 elif cl_name == 'kmeans':
                     means = cl_method.get_centers()
-                    proto_idx = [find_closest_point(mean_point, embeddings_f) for mean_point in means]
+                    proto_idx = [find_closest_point(mean_point, embeddings_red) for mean_point in means]
                 else:
                     # calculate the medoid per each cluster whose label is >= 0
-                    prototypes = [calculate_medoid(embeddings_f[clustering_result == cl_label]) for cl_label in np.unique(clustering_result) if cl_label >= 0]
+                    prototypes = [calculate_medoid(embeddings_red[clustering_result == cl_label]) for cl_label in np.unique(clustering_result) if cl_label >= 0]
                     
                 if (prototypes is not None) & (proto_idx is None):
                     # find centroids in the original data and get the indice
-                    proto_idx = [np.where(np.all(embeddings_f == el, axis=1))[0][0] for el in prototypes]
+                    proto_idx = [np.where(np.all(embeddings_red == el, axis=1))[0][0] for el in prototypes]
 
                 # save images
                 if proto_idx is not None:
                     # referencing to the original images
                     mask = np.full(n_images, False)
                     mask[original_pos[proto_idx]] = True
-                    wandb.log({"prototypes": wandb.Image(images[mask], caption=f"{cl_name}")})
+                    wandb.log({"prototypes": wandb.Image(images[mask], caption=f"{job_name}")})
 
                 # close wandb - after each clustering
                 wandb.finish()
