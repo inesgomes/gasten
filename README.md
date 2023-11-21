@@ -56,3 +56,8 @@ Run clustering:
 `python -m src.xai.clustering --config experiments/patterns/mnist_5v3.yml --run_id t7twxshj --epoch 10`
 `python -m src.xai.clustering --config experiments/patterns/mnist_8v0.yml --run_id 2fr3inkm --epoch 10`
 `python -m src.xai.clustering --config experiments/patterns/mnist_9v4.yml --run_id 14mxbs2n --epoch 10`
+
+`python -m src.xai.clustering_umap_gmm --config experiments/patterns/mnist_7v1.yml --run_id 2g8vw96h --epoch 10`
+`python -m src.xai.clustering_umap_gmm --config experiments/patterns/mnist_5v3.yml --run_id t7twxshj --epoch 10`
+`python -m src.xai.clustering_umap_gmm --config experiments/patterns/mnist_8v0.yml --run_id 2fr3inkm --epoch 10`
+`python -m src.xai.clustering_umap_gmm --config experiments/patterns/mnist_9v4.yml --run_id 14mxbs2n --epoch 10`

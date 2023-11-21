@@ -5,7 +5,7 @@ data-dir: data
 test-noise: data/z/z_20000_64
 fixed-noise: 20000
 
-device: cuda:0
+device: cuda:1
 num-workers: 6
 
 fid-stats-path: data/fid-stats/stats.inception.mnist.9v4.npz

@@ -266,7 +266,7 @@ def create_cluster_image():
                     if cl_label >= 0:
                         mask = np.full(n_images, False)
                         mask[cl_examples['original_pos']] = True
-                        wandb.log({"cluster_images": wandb.Image(images[mask], caption=f"{job_name} | Lablel {cl_label} | (N = {cl_examples.shape[0]})")})
+                        wandb.log({"cluster_images": wandb.Image(images[mask], caption=f"{job_name} | Label {cl_label} | (N = {cl_examples.shape[0]})")})
 
                 # get prototypes of each cluster
                 proto_idx = None
@@ -293,8 +293,8 @@ def create_cluster_image():
                     mask[original_pos[proto_idx]] = True
                     wandb.log({"prototypes": wandb.Image(images[mask], caption=f"{job_name}")})
 
-                # close wandb - after each clustering
-                wandb.finish()
+            # close wandb - after each clustering
+            wandb.finish()
 
 
 if __name__ == "__main__":
