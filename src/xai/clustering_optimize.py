@@ -92,18 +92,14 @@ def gmm_bic_score(estimator, X):
     return -estimator['gmm'].bic(X)
 
 def sil_score(estimator, X):
-    """_summary_
-
-    Args:
-        estimator (_type_): _description_
-        X (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
     x_red = estimator['umap'].fit_transform(X)
     labels = estimator['gmm'].fit_predict(x_red)
     return silhouette_score(x_red, labels)
+
+def db_score(estimator, X):
+    x_red = estimator['umap'].fit_transform(X)
+    labels = estimator['gmm'].fit_predict(x_red)
+    return -davies_bouldin_score(x_red, labels)
 
 
 def create_cluster_image():
@@ -246,7 +242,7 @@ def create_cluster_image():
     }
 
     # Create GridSearchCV object with silhouette scoring 
-    bayes_search = BayesSearchCV(pipeline, scoring=sil_score, search_spaces=param_space, cv=5, random_state=8, n_jobs=6, verbose=1, n_iter=80)
+    bayes_search = BayesSearchCV(pipeline, scoring=sil_score, search_spaces=param_space, cv=5, random_state=2, n_jobs=6, verbose=1, n_iter=50)
     bayes_search.fit(embeddings_f)
     clustering_result = bayes_search.predict(embeddings_f)
     # get the embeddings reduced
