@@ -14,8 +14,6 @@ mamba create -n gasten python=3.10
 mamba activate gasten
 
 mamba install pip-tools
-
-pip3 install -r requirements.txt
 ```
 
 ## Run
