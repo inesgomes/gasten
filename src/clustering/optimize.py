@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import wandb
 from dotenv import load_dotenv
+from src.clustering.aux import get_gasten_info, get_gan_path, calculate_medoid
 from src.metrics import fid
 from src.utils.config import read_config
 from src.utils.checkpoint import construct_classifier_from_checkpoint, construct_gan_from_checkpoint
@@ -15,31 +16,8 @@ from umap import UMAP
 import pandas as pd
 from skopt import BayesSearchCV
 from skopt.space import Real, Integer, Categorical
-from scipy.spatial.distance import cdist
 from tqdm import tqdm
 from torch.utils.data import TensorDataset, DataLoader
-
-
-
-def get_gasten_info(config):
-    classifier_name = config['train']['step-2']['classifier'][0].split(
-        '/')[-1].split('.')[0]
-    weight = config['train']['step-2']['weight'][0]
-    epoch1 = config['train']['step-2']['step-1-epochs'][0]
-    return classifier_name, weight, epoch1
-
-
-def get_gan_path(config, run_id, epoch2):
-    project = config['project']
-    name = config['name']
-    classifier_name, weight, epoch1 = get_gasten_info(config)
-
-    # find directory whose name ends with a given id
-    for dir in os.listdir(f"{os.environ['FILESDIR']}/out/{config['project']}/{config['name']}"):
-        if dir.endswith(run_id):
-            return f"{os.environ['FILESDIR']}/out/{project}/{name}/{dir}/{classifier_name}_{weight}_{epoch1}/{epoch2}"
-
-    raise Exception(f"Could not find directory with id {run_id}")
 
 
 def parse_args():
@@ -51,58 +29,12 @@ def parse_args():
     parser.add_argument("--epoch", dest="gasten_epoch", required=True)
     parser.add_argument("--acd_threshold", dest="acd_threshold", default=0.1)
     return parser.parse_args()
-    
-
-def euclidean_distance(point1, point2):
-    return np.sqrt(np.sum((point1 - point2)**2))
-
-
-def find_closest_point(target_point, dataset):
-    #closest_point = None
-    min_distance = float('inf')
-    closest_position = -1
-
-    for i, data_point in enumerate(dataset):
-        distance = euclidean_distance(target_point, data_point)
-        if distance < min_distance:
-            min_distance = distance
-            #closest_point = data_point
-            closest_position = i
-
-    return closest_position
-
-
-def calculate_medoid(cluster_points):
-    # Calculate pairwise distances
-    distances = cdist(cluster_points, cluster_points, metric='euclidean')
-
-    # Find the index of the point with the smallest sum of distances
-    medoid_index = np.argmin(np.sum(distances, axis=0))
-
-    # Retrieve the medoid point
-    medoid = cluster_points[medoid_index]
-
-    return medoid
-
-
-def gmm_bic_score(estimator, X):
-    """Callable to pass to GridSearchCV that will use the BIC score."""
-    # Make it negative since GridSearchCV expects a score to maximize
-    print(estimator)
-    return -estimator['gmm'].bic(X)
-
-def sil_score(estimator, X):
-    x_red = estimator['umap'].fit_transform(X)
-    labels = estimator['gmm'].fit_predict(x_red)
-    return silhouette_score(x_red, labels)
-
-def db_score(estimator, X):
-    x_red = estimator['umap'].fit_transform(X)
-    labels = estimator['gmm'].fit_predict(x_red)
-    return -davies_bouldin_score(x_red, labels)
 
 
 def create_cluster_image():
+
+    # TODO check this out, maybe the generate_embeddings already creates part of the pipeline
+
     # setup
     load_dotenv()
     args = parse_args()
@@ -116,7 +48,8 @@ def create_cluster_image():
     n_images = config['fixed-noise']
     # prepare wandb info
     dataset_id = datetime.now().strftime("%b%dT%H-%M")
-    classifier_name, weight, epoch1 = get_gasten_info(config)    
+    classifier_name, weight, epoch1 = get_gasten_info(config)   
+
     config_run = {
         'classifier': classifier_name,
         'gasten': {
@@ -187,7 +120,7 @@ def create_cluster_image():
         C.eval()
         pred = C(images)
 
-    # filter images so that ACD < 0.1
+    # filter images so that ACD < threshold
     mask = (pred >= config_run['probabilities']['min']) & (pred <= config_run['probabilities']['max'])
     images_mask = images[mask]
 
@@ -223,7 +156,7 @@ def create_cluster_image():
                 dir=os.environ['FILESDIR'],
                 group=config['name'],
                 entity=os.environ['ENTITY'],
-                job_type='step-4-clustering_optimize_gmm_umap',
+                job_type='step-4-clustering_optimize_'+config_run['clustering_method']+'_'+config_run['reduce_method'],
                 name=f"{dataset_id}_v2",
                 config=config_run)
 

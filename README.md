@@ -52,12 +52,23 @@ Run saliency_maps:
 
 Run clustering:
 
-`python -m src.xai.clustering --config experiments/patterns/mnist_7v1.yml --run_id 2g8vw96h --epoch 10`
-`python -m src.xai.clustering --config experiments/patterns/mnist_5v3.yml --run_id t7twxshj --epoch 10`
-`python -m src.xai.clustering --config experiments/patterns/mnist_8v0.yml --run_id 2fr3inkm --epoch 10`
-`python -m src.xai.clustering --config experiments/patterns/mnist_9v4.yml --run_id 14mxbs2n --epoch 10`
+- generate images and embeddings (step 1):
 
-`python -m src.xai.clustering_umap_gmm --config experiments/patterns/mnist_7v1.yml --run_id 2g8vw96h --epoch 10`
-`python -m src.xai.clustering_umap_gmm --config experiments/patterns/mnist_5v3.yml --run_id t7twxshj --epoch 10`
-`python -m src.xai.clustering_umap_gmm --config experiments/patterns/mnist_8v0.yml --run_id 2fr3inkm --epoch 10`
-`python -m src.xai.clustering_umap_gmm --config experiments/patterns/mnist_9v4.yml --run_id 14mxbs2n --epoch 10`
+`python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_7v1.yml --run_id 2g8vw96h --epoch 10 --acd_threshold=0.1 --save`
+`python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_5v3.yml --run_id t7twxshj --epoch 10 --acd_threshold=0.1 --save`
+`python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_8v0.yml --run_id 2fr3inkm --epoch 10 --acd_threshold=0.1 --save`
+`python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_9v4.yml --run_id 14mxbs2n --epoch 10 --acd_threshold=0.1 --save`
+
+- Testing dimensionality reduction and clustering pairs (dataset ID comes from generate embeddings):
+
+`python -m src.clustering.test --config experiments/patterns/mnist_7v1.yml --dataset_id Mar12T16-29`
+`python -m src.clustering.test --config experiments/patterns/mnist_5v3.yml --dataset_id Mar12T16-31`
+`python -m src.clustering.test --config experiments/patterns/mnist_8v0.yml --dataset_id Mar12T16-36`
+`python -m src.clustering.test --config experiments/patterns/mnist_9v4.yml --dataset_id Mar12T16-38`
+
+- Clustering optimization for one dimensionality reduction / clustering technique pair:
+
+`python -m src.clustering.optimize --config experiments/patterns/mnist_7v1.yml --run_id 2g8vw96h --epoch 10`
+`python -m src.clustering.optimize --config experiments/patterns/mnist_5v3.yml --run_id t7twxshj --epoch 10`
+`python -m src.clustering.optimize --config experiments/patterns/mnist_8v0.yml --run_id 2fr3inkm --epoch 10`
+`python -m src.clustering.optimize --config experiments/patterns/mnist_9v4.yml --run_id 14mxbs2n --epoch 10`
