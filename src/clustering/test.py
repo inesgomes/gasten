@@ -1,27 +1,39 @@
 import argparse
-import numpy as np
 import os
+import numpy as np
 import pandas as pd
 import wandb
 from dotenv import load_dotenv
-
-
-from sklearn.decomposition import PCA
 from sklearn.cluster import HDBSCAN, DBSCAN, AgglomerativeClustering
 from sklearn.mixture import BayesianGaussianMixture
-from umap import UMAP
-
 from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
-from pyclustering.cluster.xmeans import xmeans
-
-
-import matplotlib.pyplot as plt
-
+from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
+from umap import UMAP
 from src.utils.config import read_config
+from src.clustering.aux import calculate_medoid, find_closest_point
+from src.datasets import load_dataset
+import torch 
+import matplotlib.pyplot as plt
+#from pyclustering.cluster.xmeans import xmeans
 
 
-from src.clustering.aux import get_gasten_info, get_gan_path, calculate_medoid, find_closest_point
-
+# available reductions and clustering options to test in the pipeline
+REDUCTION_DICT = {
+    'None': None,
+    'pca_90': PCA(n_components=0.9),
+    'pca_70': PCA(n_components=0.7),
+    'tsne_3': TSNE(n_components=3),
+    'umap_15': UMAP(n_components=15),
+}
+# step 2 - clustering
+CLUSTERING_DICT = {
+    'dbscan': DBSCAN(min_samples=5, eps=0.2),
+    'hdbscan': HDBSCAN(min_samples=5, store_centers="both"),
+    #'kmeans': None,
+    'ward': AgglomerativeClustering(distance_threshold=25, n_clusters=None),
+    'gaussian_mixture': BayesianGaussianMixture(n_components=3, covariance_type='full', max_iter=1000, random_state=0),
+}
 
 def parse_args():
     """_summary_
@@ -32,57 +44,52 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", dest="config",
                         help="Config file", required=True)
-    parser.add_argument("--run_id", dest="run_id",
+    parser.add_argument("--dataset_id", dest="dataset_id",
                         help="Experiment ID (seen in wandb)", required=True)
-    parser.add_argument("--epoch", dest="gasten_epoch", required=True)
-    parser.add_argument("--acd_threshold", dest="acd_threshold", default=0.1)
+    parser.add_argument("--dim_red", dest="dim_red",
+                        help="Dimensionality reduction method", required=False)
+    parser.add_argument("--clustering", dest="clustering",
+                        help="Clustering method", required=False)
     return parser.parse_args()
 
 
-def create_cluster_image():
+def create_cluster_image(config, dataset_id, dim_red=None, clustering=None):
     """_summary_
     """
-    ALL_VS_ALL = False
+    # initialize variables
+    config_run = {}
+    DIR = f"{os.environ['FILESDIR']}/data/clustering/{dataset_id}"
+    # the embeddings and the images are saved in the same order
+    C_emb = torch.load(f"{DIR}/classifier_embeddings.pt")
+    images = torch.load(f"{DIR}/images_acd_1.pt")
+    device = config["device"]
 
-    # setup
-    # TODO get embeddings
-    # TODO get dataset_id
-
-    n_images = config['fixed-noise']
-    emb_size = embeddings_f.shape[1]    
-
-    if ALL_VS_ALL:
-        # step 1 - reduce dimensionality
-        reductions = {
-            'None': None,
-        #    'pca_90': PCA(n_components=0.9),
-        #    'pca_70': PCA(n_components=0.7),
-        #    'tsne': TSNE(n_components=2),
-            'umap_sml': UMAP(n_components=15),
-            'umap_half': UMAP(n_components=int(emb_size/2)),
-        #    'umap_2third': UMAP(n_components=int(emb_size*2/3)),
-        }
-        # step 2 - clustering
-        clusterings = {
-            'dbscan': DBSCAN(min_samples=5, eps=0.2),
-            'hdbscan': HDBSCAN(min_samples=5, store_centers="both"),
-            'kmeans': None,
-            'ward': AgglomerativeClustering(distance_threshold=25, n_clusters=None),
-            'gaussian_mixture': BayesianGaussianMixture(n_components=3, covariance_type='full', max_iter=1000, random_state=0),
-        }
+    my_clusterings = CLUSTERING_DICT
+    my_reductions = REDUCTION_DICT
+    if (dim_red in REDUCTION_DICT) & (clustering in CLUSTERING_DICT):
+        my_reductions = {dim_red: REDUCTION_DICT[dim_red]}
+        my_clusterings = {clustering: CLUSTERING_DICT[clustering]}
     else:
-        # step 1 - reduce dimensionality
-        reductions = {
-            'umap_sml': UMAP(n_components=15),
-        }
-        # step 2 - clustering
-        clusterings = {
-            'dbscan': DBSCAN(min_samples=5, eps=0.2)
-        }
+        print("all vs all approach...")
+
+    # get embeddings
+    with torch.no_grad():
+        embeddings = C_emb(images.to(device))
+
+    # get test set images
+    test_set = load_dataset(config["dataset"]["name"], config["data-dir"], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], train=False)[0]
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=config['train']['step-2']['batch-size'], shuffle=False)
+    embeddings_tst_array = []
+    with torch.no_grad():
+        for data_tst in test_loader:
+            X, _ = data_tst
+            embeddings_tst_array.append(C_emb(X.to(device)))
+    # concatenate the array
+    embeddings_tst = torch.cat(embeddings_tst_array, dim=0)
 
     # one wandb run for each clustering
-    for cl_name, cl_method in clusterings.items():
-        for red_name, red_method in reductions.items():
+    for cl_name, cl_method in my_clusterings.items():
+        for red_name, red_method in my_reductions.items():
             # start wandb
             config_run['clustering_method'] = cl_name
             config_run['reduce_method'] = red_name
@@ -93,23 +100,23 @@ def create_cluster_image():
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type=f'step-4-clustering_{job_name}',
-                name=f"{dataset_id}_v2",
+                name=f"{dataset_id}_v3",
                 config=config_run)
             
             # apply reduction method
-            embeddings_red = red_method.fit_transform(embeddings_f) if red_name != "None" else embeddings_f
+            embeddings_red = red_method.fit_transform(embeddings) if red_name != "None" else embeddings
+            # scikit-learn methods
+            clustering_result = cl_method.fit_predict(embeddings_red)
 
             # if string includes 'kmeans' then apply xmeans
-            if cl_name == 'kmeans' :
-                # define here the instance
-                cl_method = xmeans(embeddings_red, k_max=15)
-                cl_method.process()
-                clustering_xmeans = cl_method.get_clusters()
-                subcluster_labels = {subcluster_index: i for i, x_cluster in enumerate(clustering_xmeans) for subcluster_index in x_cluster}
-                clustering_result = [x_label for _, x_label in sorted(subcluster_labels.items())]
-            else:
-                # scikit-learn methods
-                clustering_result = cl_method.fit_predict(embeddings_red)
+            # I think that in this case we cannot guarante the order of the clusters
+            #if cl_name == 'kmeans' :
+            #    # define here the instance
+            #    cl_method = xmeans(embeddings_red, k_max=15)
+            #    cl_method.process()
+            #    clustering_xmeans = cl_method.get_clusters()
+            #    subcluster_labels = {subcluster_index: i for i, x_cluster in enumerate(clustering_xmeans) for subcluster_index in x_cluster}
+            #    clustering_result = [x_label for _, x_label in sorted(subcluster_labels.items())] 
 
             # verify if it worked
             n_clusters = sum(np.unique(clustering_result)>=0)
@@ -124,12 +131,10 @@ def create_cluster_image():
                 wandb.log({"cluster_sizes": wandb.Table(dataframe=cluster_sizes)})
 
                 # save images per cluster
-                for cl_label, cl_examples in pd.DataFrame({'cluster': clustering_result, 'original_pos': original_pos}).groupby('cluster'):
+                for cl_label, cl_examples in pd.DataFrame({'cluster': clustering_result, 'image': images}).groupby('cluster'):
                     # get the original image positions
                     if cl_label >= 0:
-                        mask = np.full(n_images, False)
-                        mask[cl_examples['original_pos']] = True
-                        wandb.log({"cluster_images": wandb.Image(images[mask], caption=f"{job_name} | Label {cl_label} | (N = {cl_examples.shape[0]})")})
+                        wandb.log({"cluster_images": wandb.Image(cl_examples, caption=f"{job_name} | Label {cl_label} | (N = {cl_examples.shape[0]})")})
 
                 # get prototypes of each cluster
                 proto_idx = None
@@ -151,12 +156,24 @@ def create_cluster_image():
 
                 # save images
                 if proto_idx is not None:
-                    # referencing to the original images
-                    mask = np.full(n_images, False)
-                    mask[original_pos[proto_idx]] = True
-                    wandb.log({"prototypes": wandb.Image(images[mask], caption=f"{job_name}")})
+                    wandb.log({"prototypes": wandb.Image(images[proto_idx], caption=f"{job_name}")})
 
-                # TODO: create visualizations
+                # TSNE visualization
+                # merge tst and ambiguous examples
+                emb_tst_protos = torch.cat([embeddings_tst, embeddings[proto_idx]], dim=0)
+                final_red = TSNE(n_components=2).fit_transform(emb_tst_protos.cpu().detach().numpy())
+
+                red_1 = final_red[:embeddings_tst.shape[0]]
+                red2 = final_red[embeddings_tst.shape[0]:]
+                plt.scatter(x=red_1[:, 0], y=red_1[:, 1], marker='o', label='test set')
+                plt.scatter(x=red_2[:, 0], y=red_2[:, 1], marker='x', label='prototypes')
+                plt.legend()
+                wandb.log({f"Embeddings (test set and prototypes)": wandb.Image(plt)})
+                plt.close()
+                # get the test set and color it with red/green according to positive/negative class
+                # get the ambiguous images and color them according to the cluster (with and without the test set)
+                # test set + prototypes
+                # ambiguous + prototypes
                 # TODO: colors per cluster
                 # TODO: colors per prototype    
                 
@@ -165,4 +182,9 @@ def create_cluster_image():
 
 
 if __name__ == "__main__":
-    create_cluster_image()
+    # setup
+    load_dotenv()
+    args = parse_args()
+    config = read_config(args.config)
+
+    create_cluster_image(config, args.dataset_id, args.dim_red, args.clustering)

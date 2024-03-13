@@ -1,4 +1,5 @@
 import argparse
+from email.charset import add_codec
 import os
 from datetime import datetime
 from dotenv import load_dotenv
@@ -164,10 +165,10 @@ if __name__ == "__main__":
         print("saving data...")
         DIR = f"{os.environ['FILESDIR']}/data/clustering/{dataset_id}"
         if not os.path.exists(DIR):
-            # Create the directory
             os.makedirs(DIR)
-        torch.save(embeddings_f, f"{DIR}/embeddings.pt")
-        torch.save(images_mask, f"{DIR}/images_mask.pt")
+        torch.save(C_emb, f"{DIR}/classifier_embeddings.pt")
+        thr = float(args.acd_threshold)*10
+        torch.save(images_mask, f"{DIR}/images_acd_{thr}.pt")
 
     # prepare viz
     print("Start visualizing embeddings...")

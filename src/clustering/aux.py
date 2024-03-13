@@ -2,7 +2,7 @@
 import os
 import numpy as np
 from scipy.spatial.distance import cdist
-from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
+from sklearn.metrics import silhouette_score, davies_bouldin_score
 
 
 def get_gasten_info(config):
