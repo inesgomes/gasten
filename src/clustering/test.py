@@ -58,12 +58,12 @@ def create_cluster_image(config, dataset_id, dim_red=None, clustering=None):
     """
     # initialize variables
     config_run = {}
+    device = config["device"]
     DIR = f"{os.environ['FILESDIR']}/data/clustering/{dataset_id}"
     # the embeddings and the images are saved in the same order
     C_emb = torch.load(f"{DIR}/classifier_embeddings.pt")
-    images = torch.load(f"{DIR}/images_acd_1.pt")
-    device = config["device"]
-
+    images = torch.load(f"{DIR}/images_acd_1.pt").to(device)
+   
     my_clusterings = CLUSTERING_DICT
     my_reductions = REDUCTION_DICT
     if (dim_red in REDUCTION_DICT) & (clustering in CLUSTERING_DICT):
@@ -74,7 +74,7 @@ def create_cluster_image(config, dataset_id, dim_red=None, clustering=None):
 
     # get embeddings
     with torch.no_grad():
-        embeddings = C_emb(images.to(device))
+        embeddings = C_emb(images)
 
     # get test set images
     test_set = load_dataset(config["dataset"]["name"], config["data-dir"], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], train=False)[0]
@@ -108,7 +108,7 @@ def create_cluster_image(config, dataset_id, dim_red=None, clustering=None):
                 config=config_run)
             
             # apply reduction method
-            embeddings_red = red_method.fit_transform(embeddings) if red_name != "None" else embeddings
+            embeddings_red = red_method.fit_transform(embeddings.cpu().detach().numpy()) if red_name != "None" else embeddings
             # scikit-learn methods
             clustering_result = cl_method.fit_predict(embeddings_red)
 
@@ -121,7 +121,7 @@ def create_cluster_image(config, dataset_id, dim_red=None, clustering=None):
             #    clustering_xmeans = cl_method.get_clusters()
             #    subcluster_labels = {subcluster_index: i for i, x_cluster in enumerate(clustering_xmeans) for subcluster_index in x_cluster}
             #    clustering_result = [x_label for _, x_label in sorted(subcluster_labels.items())] 
-
+ 
             # verify if it worked
             n_clusters = sum(np.unique(clustering_result)>=0)
             if n_clusters > 1:
@@ -135,10 +135,11 @@ def create_cluster_image(config, dataset_id, dim_red=None, clustering=None):
                 wandb.log({"cluster_sizes": wandb.Table(dataframe=cluster_sizes)})
 
                 # save images per cluster
-                for cl_label, cl_examples in pd.DataFrame({'cluster': clustering_result, 'image': images}).groupby('cluster'):
+                for cl_label, example_no in pd.DataFrame({'cluster': clustering_result, 'image': np.arange(clustering_result.shape[0])}).groupby('cluster'):
                     # get the original image positions
                     if cl_label >= 0:
-                        wandb.log({"cluster_images": wandb.Image(cl_examples, caption=f"{job_name} | Label {cl_label} | (N = {cl_examples.shape[0]})")})
+                        selected_images = torch.index_select(images, 0, torch.tensor(list(example_no["image"])).to(device))
+                        wandb.log({"cluster_images": wandb.Image(selected_images, caption=f"{job_name} | Label {cl_label} | (N = {len(example_no)})")})
 
                 # get prototypes of each cluster
                 proto_idx = None
@@ -160,23 +161,30 @@ def create_cluster_image(config, dataset_id, dim_red=None, clustering=None):
 
                 # save images
                 if proto_idx is not None:
-                    wandb.log({"prototypes": wandb.Image(images[proto_idx], caption=f"{job_name}")})
+                    selected_images = torch.index_select(images, 0, torch.tensor(proto_idx).to(device))
+                    wandb.log({"prototypes": wandb.Image(selected_images, caption=f"{job_name}")})
 
                 # TSNE visualization
                 # merge tst and ambiguous examples
+                # get the test set and color it with red/green according to positive/negative class
+                # mark the prototypes with x
                 emb_tst_protos = torch.cat([embeddings_tst, embeddings[proto_idx]], dim=0)
                 final_red = TSNE(n_components=2).fit_transform(emb_tst_protos.cpu().detach().numpy())
                 red_1 = final_red[:embeddings_tst.shape[0]]
                 red_2 = final_red[embeddings_tst.shape[0]:]
-                plt.scatter(x=red_1[:, 0], y=red_1[:, 1], marker='o', label='test set', c=preds, cmap='RdYlGn')
-                plt.scatter(x=red_2[:, 0], y=red_2[:, 1], marker='x', label='prototypes')
+                plt.scatter(x=red_1[:, 0], y=red_1[:, 1], marker='o', label='test set', c=preds, cmap='RdYlGn', alpha=0.5)
+                plt.scatter(x=red_2[:, 0], y=red_2[:, 1], marker='X', label='prototypes', c="black")
                 plt.legend()
                 wandb.log({f"Embeddings (test set and prototypes)": wandb.Image(plt)})
                 plt.close()
 
-                # get the test set and color it with red/green according to positive/negative class
-                # get the ambiguous images and color them according to the cluster (with and without the test set)
-                # test set + prototypes
+                # only ambiguous images colored per cluster
+                ambiguous_cl = TSNE(n_components=2).fit_transform(embeddings.cpu().detach().numpy())
+                plt.scatter(x=ambiguous_cl[:, 0], y=ambiguous_cl[:, 1], c=clustering_result, cmap='Accent', alpha=0.7)
+                wandb.log({f"Embeddings Clusters (ambiguous images)": wandb.Image(plt)})
+                plt.close()
+                        
+                # TODO: get the ambiguous images and color them according to the cluster (with and without the test set)
                 # ambiguous + prototypes
                 # TODO: colors per cluster
                 # TODO: colors per prototype    

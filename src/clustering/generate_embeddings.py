@@ -167,7 +167,7 @@ if __name__ == "__main__":
         if not os.path.exists(DIR):
             os.makedirs(DIR)
         torch.save(C_emb, f"{DIR}/classifier_embeddings.pt")
-        thr = float(args.acd_threshold)*10
+        thr =int(float(args.acd_threshold)*10)
         torch.save(images_mask, f"{DIR}/images_acd_{thr}.pt")
 
     # prepare viz
@@ -176,9 +176,9 @@ if __name__ == "__main__":
     cmap = 'RdYlGn'
 
     viz_algs = {
+        'PCA': PCA(n_components=2),
         'UMAP': UMAP(n_components=2),
         'TSNE': TSNE(n_components=2),
-        'PCA': PCA(n_components=2)
     }
 
     embeddings_total = torch.cat([embeddings_tst, embeddings_f], dim=0).cpu().detach().numpy()
@@ -193,12 +193,19 @@ if __name__ == "__main__":
         wandb.log({f"{name} Embeddings (gen)": wandb.Image(plt)})
         plt.close()
 
-        red_embs_test = alg.fit_transform(embeddings_tst_cpu)
+        if name == 'TSNE':
+            red_embs_test = alg.fit_transform(embeddings_tst_cpu)
+        else:
+            alg_tst = alg.fit(embeddings_tst_cpu)
+            red_embs_test = alg_tst.transform(embeddings_tst_cpu)
         plt.scatter(x=red_embs_test[:, 0], y=red_embs_test[:, 1], c=pred_tst, cmap=cmap, marker='x', vmin=0, vmax=1)
         wandb.log({f"{name} Embeddings (test set)": wandb.Image(plt)})
         plt.close()
 
-        red_embs_total = alg.fit_transform(embeddings_total)
+        if name == 'TSNE':
+            red_embs_total = alg.fit_transform(embeddings_total)
+        else:
+            red_embs_total = alg_tst.transform(embeddings_total)
         real_embs = red_embs_total[:size_real]
         syn_embs = red_embs_total[size_real:]
 
