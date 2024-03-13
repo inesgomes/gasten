@@ -80,12 +80,16 @@ def create_cluster_image(config, dataset_id, dim_red=None, clustering=None):
     test_set = load_dataset(config["dataset"]["name"], config["data-dir"], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], train=False)[0]
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=config['train']['step-2']['batch-size'], shuffle=False)
     embeddings_tst_array = []
+    preds = []
     with torch.no_grad():
         for data_tst in test_loader:
-            X, _ = data_tst
+            X, y = data_tst
             embeddings_tst_array.append(C_emb(X.to(device)))
+            preds.append(y)
+
     # concatenate the array
     embeddings_tst = torch.cat(embeddings_tst_array, dim=0)
+    preds = torch.cat(preds, dim=0).cpu().detach().numpy()
 
     # one wandb run for each clustering
     for cl_name, cl_method in my_clusterings.items():
@@ -162,14 +166,14 @@ def create_cluster_image(config, dataset_id, dim_red=None, clustering=None):
                 # merge tst and ambiguous examples
                 emb_tst_protos = torch.cat([embeddings_tst, embeddings[proto_idx]], dim=0)
                 final_red = TSNE(n_components=2).fit_transform(emb_tst_protos.cpu().detach().numpy())
-
                 red_1 = final_red[:embeddings_tst.shape[0]]
-                red2 = final_red[embeddings_tst.shape[0]:]
-                plt.scatter(x=red_1[:, 0], y=red_1[:, 1], marker='o', label='test set')
+                red_2 = final_red[embeddings_tst.shape[0]:]
+                plt.scatter(x=red_1[:, 0], y=red_1[:, 1], marker='o', label='test set', c=preds, cmap='RdYlGn')
                 plt.scatter(x=red_2[:, 0], y=red_2[:, 1], marker='x', label='prototypes')
                 plt.legend()
                 wandb.log({f"Embeddings (test set and prototypes)": wandb.Image(plt)})
                 plt.close()
+
                 # get the test set and color it with red/green according to positive/negative class
                 # get the ambiguous images and color them according to the cluster (with and without the test set)
                 # test set + prototypes
