@@ -38,6 +38,39 @@ ENTITY=<wandb entity to track experiments>
 
 ### GASTeN
 
-Run GASTeN to create images in the bounday between **1** and **7**.
+Run GASTeN to create images in the boundary between **1** and **7**.
 
 `python -m src --config experiments/mnist_7v1.yml`
+
+### Interpretability module
+
+Run saliency_maps:
+
+`python -m src.xai.saliency_maps --type gasten --no 5`
+`python -m src.xai.saliency_maps --type vae --no 7`
+`python -m src.xai.saliency_maps --type test`
+
+Run clustering:
+
+- generate images and embeddings (step 1):
+
+`python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_7v1.yml --run_id 2g8vw96h --epoch 10 --acd_threshold=0.1 --save`
+`python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_5v3.yml --run_id t7twxshj --epoch 10 --acd_threshold=0.1 --save`
+`python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_8v0.yml --run_id 2fr3inkm --epoch 10 --acd_threshold=0.1 --save`
+`python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_9v4.yml --run_id 14mxbs2n --epoch 10 --acd_threshold=0.1 --save`
+
+- Testing dimensionality reduction and clustering pairs 
+    - dataset ID comes from generate embeddings
+    - suggested values come from paper
+
+`python -m src.clustering.test --config experiments/patterns/mnist_7v1.yml --dataset_id Mar13T21-35 --dim_red umap_80 --clustering gmm_d3`
+`python -m src.clustering.test --config experiments/patterns/mnist_5v3.yml --dataset_id Mar13T21-36 --dim_red umap_10 --clustering gmm_s4`
+`python -m src.clustering.test --config experiments/patterns/mnist_8v0.yml --dataset_id Mar13T21-39 --dim_red umap_80 --clustering gmm_s3`
+`python -m src.clustering.test --config experiments/patterns/mnist_9v4.yml --dataset_id Mar13T21-40 --dim_red umap_80 --clustering gmm_s3`
+
+- Clustering optimization for one dimensionality reduction / clustering technique pair:
+
+`python -m src.clustering.optimize --config experiments/patterns/mnist_7v1.yml --run_id 2g8vw96h --epoch 10`
+`python -m src.clustering.optimize --config experiments/patterns/mnist_5v3.yml --run_id t7twxshj --epoch 10`
+`python -m src.clustering.optimize --config experiments/patterns/mnist_8v0.yml --run_id 2fr3inkm --epoch 10`
+`python -m src.clustering.optimize --config experiments/patterns/mnist_9v4.yml --run_id 14mxbs2n --epoch 10`

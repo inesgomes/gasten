@@ -80,6 +80,7 @@ def train_modified_gan(config, dataset, cp_dir, gan_path, test_noise,
 
     set_seed(seed)
     wandb.init(project=config["project"],
+               dir=os.environ['FILESDIR'],
                group=config["name"],
                entity=os.environ['ENTITY'],
                job_type='step-2',
@@ -221,6 +222,7 @@ def main():
                 else (early_stop_key, early_stop_crit)
 
             wandb.init(project=config["project"],
+                       dir=os.environ['FILESDIR'],
                        group=config["name"],
                        entity=os.environ['ENTITY'],
                        job_type='step-1',
@@ -275,7 +277,7 @@ def main():
             C.eval()
             C.output_feature_maps = True
 
-            class_cache = ClassifierCache(C)
+            class_cache = ClassifierCache(C) 
 
             def get_feature_map_fn(images, batch_idx, batch_size):
                 return class_cache.get(images, batch_idx, batch_size, output_feature_maps=True)[1]

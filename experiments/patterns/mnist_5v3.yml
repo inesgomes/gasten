@@ -1,22 +1,20 @@
-project: gasten_20230413
-name: mnist-7v1
+project: gasten_20231211
+name: mnist-5v3
 out-dir: out
 data-dir: data
-test-noise: data/z/z_2000_64
-fixed-noise: 2000
+test-noise: data/z/z_20000_64
+fixed-noise: 20000
 
 device: cuda:1
 num-workers: 6
 
-fid-stats-path: data/fid-stats/stats.inception.mnist.7v1.npz
-
-num-runs: 3
+fid-stats-path: data/fid-stats/stats.inception.mnist.5v3.npz
 
 dataset:
   name: mnist
   binary:
-    pos: 7
-    neg: 1
+    pos: 5
+    neg: 3
 
 model:
   z_dim: 64
@@ -46,22 +44,10 @@ train:
     epochs: 40
     checkpoint-every: 10
     step-1-epochs:
-      - 0
-      - 2
-      - 5
       - 10
     batch-size: 64
     disc-iters: 1
     classifier:
-      - models/mnist.7v1/cnn-1-1.22602
-      - models/mnist.7v1/cnn-2-1.88299
-      - models/mnist.7v1/cnn-4-1.44629
+      - models/mnist.5v3/cnn-2-1.13174
     weight:
-      - 0
-      - mgda
-      - 5
-      - 10
-      - 15
-      - 20
       - 25
-      - 30
