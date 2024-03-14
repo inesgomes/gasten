@@ -53,9 +53,9 @@ train:
     batch-size: 64
     disc-iters: 1
     classifier:
-      - "/media/SEAGATE6T/IGOMES/models/mnist.9v4/cnn-1-1.79833"
-      - "/media/SEAGATE6T/IGOMES/models/mnist.9v4/cnn-2-1.2190"
-      - "/media/SEAGATE6T/IGOMES/models/mnist.9v4/cnn-4-1.43652"
+      - "models/mnist.9v4/cnn-1-1.79833"
+      - "models/mnist.9v4/cnn-2-1.2190"
+      - "models/mnist.9v4/cnn-4-1.43652"
     weight:
       - 0
       - mgda

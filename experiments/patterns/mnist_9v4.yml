@@ -2,11 +2,13 @@ project: gasten_20231211
 name: mnist-9v4
 out-dir: out
 data-dir: data
-test-noise: data/z/z_20000_64
-fixed-noise: 20000
+test-noise: data/z/z_2048_64
+fixed-noise: 2048
 
-device: cuda:1
-num-workers: 6
+device: cuda:0
+num-workers: 2
+
+num-runs: 1
 
 fid-stats-path: data/fid-stats/stats.inception.mnist.9v4.npz
 
@@ -48,6 +50,6 @@ train:
     batch-size: 64
     disc-iters: 1
     classifier:
-      - models/mnist.9v4/cnn-2-1.40022
+      - models/mnist.9v4/cnn-2-1.12432
     weight:
       - 25

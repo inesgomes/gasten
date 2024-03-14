@@ -30,6 +30,8 @@ def checkpoint(model, model_name, model_params, train_stats, args, output_dir=No
 
     torch.save(save_dict, os.path.join(output_dir, 'classifier.pth'))
 
+    print(" > Saved model to {}".format(output_dir))
+
     return output_dir
 
 

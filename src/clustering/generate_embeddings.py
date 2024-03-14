@@ -1,5 +1,4 @@
 import argparse
-from email.charset import add_codec
 import os
 from datetime import datetime
 from dotenv import load_dotenv
@@ -28,7 +27,7 @@ def parse_args():
     parser.add_argument("--config", dest="config",
                         help="Config file", required=True)
     parser.add_argument("--run_id", dest="run_id",
-                        help="Experiment ID (seen in wandb)", required=True)
+                        help="Experiment ID (seen in wandb) from GAN", required=True)
     parser.add_argument("--epoch", dest="gasten_epoch", required=True)
     parser.add_argument("--acd_threshold", dest="acd_threshold", default=0.1)
     parser.add_argument("--save", action=argparse.BooleanOptionalAction)
@@ -47,7 +46,6 @@ if __name__ == "__main__":
     batch_size = config['train']['step-2']['batch-size']
     n_images = config['fixed-noise']
     # prepare wandb info
-    dataset_id = datetime.now().strftime("%b%dT%H-%M")
     classifier_name, weight, epoch1 = get_gasten_info(config)    
 
     config_run = {
@@ -68,7 +66,7 @@ if __name__ == "__main__":
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type='step-3-amb_img_generation',
-                name=dataset_id,
+                name=args.run_id,
                 config=config_run)
 
     # get GAN
@@ -139,9 +137,6 @@ if __name__ == "__main__":
     images_mask = images[mask]
     pred_syn = pred[mask]
 
-    # point to the original positions (needed later for viz)
-    # original_pos = np.where(mask.cpu().detach().numpy())[0]
-
     # count the ambig images
     n_amb_img = images_mask.shape[0]
     wandb.log({"n_ambiguous_images": n_amb_img})
@@ -163,7 +158,7 @@ if __name__ == "__main__":
     # save embeddings and images
     if args.save:
         print("saving data...")
-        DIR = f"{os.environ['FILESDIR']}/data/clustering/{dataset_id}"
+        DIR = f"{os.environ['FILESDIR']}/data/clustering/{args.run_id}"
         if not os.path.exists(DIR):
             os.makedirs(DIR)
         torch.save(C_emb, f"{DIR}/classifier_embeddings.pt")

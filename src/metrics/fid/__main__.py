@@ -1,9 +1,8 @@
 import os
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import torch
 import numpy as np
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from dotenv import load_dotenv
-
 from src.metrics import fid
 from src.metrics.fid import get_inception_feature_map_fn
 from src.utils.checkpoint import construct_classifier_from_checkpoint

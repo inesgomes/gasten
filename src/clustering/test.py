@@ -47,8 +47,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", dest="config",
                         help="Config file", required=True)
-    parser.add_argument("--dataset_id", dest="dataset_id",
-                        help="Experiment ID (seen in wandb)", required=True)
+    parser.add_argument("--run_id", dest="run_id",
+                        help="Experiment ID (seen in wandb) from GAN", required=True)
     parser.add_argument("--dim_red", dest="dim_red",
                         help="Dimensionality reduction method", required=False)
     parser.add_argument("--clustering", dest="clustering",
@@ -129,13 +129,13 @@ def viz_2d_all(viz_embeddings, n_tst, n_protos, preds, clustering_result, name):
     
     return plt
 
-def create_cluster_image(config, dataset_id, dim_red=None, clustering=None):
+def create_cluster_image(config, run_id, dim_red=None, clustering=None):
     """_summary_
     """
     # initialize variables
     config_run = {}
     device = config["device"]
-    DIR = f"{os.environ['FILESDIR']}/data/clustering/{dataset_id}"
+    DIR = f"{os.environ['FILESDIR']}/data/clustering/{run_id}"
     # the embeddings and the images are saved in the same order
     C_emb = torch.load(f"{DIR}/classifier_embeddings.pt")
     images = torch.load(f"{DIR}/images_acd_1.pt").to(device)
@@ -180,7 +180,7 @@ def create_cluster_image(config, dataset_id, dim_red=None, clustering=None):
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type=f'step-4-clustering_{job_name}',
-                name=f"{dataset_id}_v3",
+                name=f"{run_id}_v3",
                 config=config_run)
             
             # apply reduction method
@@ -303,4 +303,4 @@ if __name__ == "__main__":
     args = parse_args()
     config = read_config(args.config)
 
-    create_cluster_image(config, args.dataset_id, args.dim_red, args.clustering)
+    create_cluster_image(config, args.run_id, args.dim_red, args.clustering)

@@ -4,8 +4,8 @@ Some relevant info:
 > Jul10T16-19_1eygesna -> z=200
 > Jul10T16-31_3l4yezei -> z=2000
 
-- step1 GAN: /media/SEAGATE6T/IGOMES/gasten/out/gasten_20230710/mnist-7v1/Jul10T17-29_1p7i0mep/step-1/10 
-- step2 GAN: /media/SEAGATE6T/IGOMES/gasten/out/gasten_20230710/mnist-7v1/Jul10T17-29_1p7i0mep/cnn-2-1_25_10/40
+- step1 GAN: gasten/out/gasten_20230710/mnist-7v1/Jul10T17-29_1p7i0mep/step-1/10 
+- step2 GAN: gasten/out/gasten_20230710/mnist-7v1/Jul10T17-29_1p7i0mep/cnn-2-1_25_10/40
 """
 import os
 import torch

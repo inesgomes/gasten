@@ -266,6 +266,5 @@ def train(config, dataset, device, n_epochs, batch_size, G, g_opt, g_updater, D,
                     " > Early stop tracker {}/{}".format(train_state['early_stop_tracker'], early_stop_crit))
                 if train_state['early_stop_tracker'] == early_stop_crit:
                     break
-    torch.save(G, '/media/SEAGATE6T/IGOMES/gasten/out/test_generator.pt')
 
     return train_state, best_cp, train_metrics, eval_metrics
