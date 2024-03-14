@@ -211,7 +211,7 @@ if __name__ == "__main__":
 
         plt.scatter(real_embs[:, 0], real_embs[:, 1], c=pred_tst, label='Real Data', cmap=cmap, alpha=alpha, marker='x', vmin=0, vmax=1)
         plt.scatter(syn_embs[:, 0], syn_embs[:, 1], c=pred_syn, label='Synthetic Data', cmap=cmap, alpha=0.5, marker='o', vmin=0, vmax=1)
-        plt.legend()
+        plt.legend(ncols=2, loc='upper center', bbox_to_anchor=(0.5, -0.05), fontsize='small')
         wandb.log({f"{name} Embeddings (test set + gen)": wandb.Image(plt)})
         plt.close()
 
