@@ -59,14 +59,14 @@ Run clustering:
 `python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_8v0.yml --run_id 2fr3inkm --epoch 10 --acd_threshold=0.1 --save`
 `python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_9v4.yml --run_id 14mxbs2n --epoch 10 --acd_threshold=0.1 --save`
 
-- Testing dimensionality reduction and clustering pairs (dataset ID comes from generate embeddings):
+- Testing dimensionality reduction and clustering pairs 
+    - dataset ID comes from generate embeddings
+    - suggested values come from paper
 
-TODO: select the hyperparameters from the paper
-
-`python -m src.clustering.test --config experiments/patterns/mnist_7v1.yml --dataset_id Mar13T21-35 --dim_red umap_15 --clustering gaussian_mixture`
-`python -m src.clustering.test --config experiments/patterns/mnist_5v3.yml --dataset_id Mar13T21-36`
-`python -m src.clustering.test --config experiments/patterns/mnist_8v0.yml --dataset_id Mar13T21-39`
-`python -m src.clustering.test --config experiments/patterns/mnist_9v4.yml --dataset_id Mar13T21-40`
+`python -m src.clustering.test --config experiments/patterns/mnist_7v1.yml --dataset_id Mar13T21-35 --dim_red umap_80 --clustering gmm_d3`
+`python -m src.clustering.test --config experiments/patterns/mnist_5v3.yml --dataset_id Mar13T21-36 --dim_red umap_10 --clustering gmm_s4`
+`python -m src.clustering.test --config experiments/patterns/mnist_8v0.yml --dataset_id Mar13T21-39 --dim_red umap_80 --clustering gmm_s3`
+`python -m src.clustering.test --config experiments/patterns/mnist_9v4.yml --dataset_id Mar13T21-40 --dim_red umap_80 --clustering gmm_s3`
 
 - Clustering optimization for one dimensionality reduction / clustering technique pair:
 

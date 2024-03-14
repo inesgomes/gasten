@@ -5,7 +5,7 @@ import pandas as pd
 import wandb
 from dotenv import load_dotenv
 from sklearn.cluster import HDBSCAN, DBSCAN, AgglomerativeClustering
-from sklearn.mixture import BayesianGaussianMixture
+from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
@@ -24,7 +24,8 @@ REDUCTION_DICT = {
     'pca_90': PCA(n_components=0.9),
     'pca_70': PCA(n_components=0.7),
     'tsne_3': TSNE(n_components=3),
-    'umap_15': UMAP(n_components=15),
+    'umap_80': UMAP(n_components=80, n_neighbors=8, min_dist=0.05, random_state=0),
+    'umap_10': UMAP(n_components=10, n_neighbors=8, min_dist=0.05, random_state=0),
 }
 # step 2 - clustering
 CLUSTERING_DICT = {
@@ -32,7 +33,9 @@ CLUSTERING_DICT = {
     'hdbscan': HDBSCAN(min_samples=5, store_centers="both"),
     #'kmeans': None,
     'ward': AgglomerativeClustering(distance_threshold=25, n_clusters=None),
-    'gaussian_mixture': BayesianGaussianMixture(n_components=3, covariance_type='full', max_iter=1000, random_state=0),
+    'gmm_s3': GaussianMixture(n_components=3, covariance_type='spherical', random_state=0),
+    'gmm_s4': GaussianMixture(n_components=4, covariance_type='spherical', random_state=0),
+    'gmm_d3': GaussianMixture(n_components=3, covariance_type='diag', random_state=0),
 }
 
 def parse_args():
@@ -117,8 +120,8 @@ def viz_2d_all(viz_embeddings, n_tst, n_protos, preds, clustering_result, name):
     emb_all_proto = viz_embeddings[-n_protos:]
     
     plt.figure(figsize=(9,8))
-    plt.scatter(x=emb_all_tst_neg[:, 0], y=emb_all_tst_neg[:, 1], alpha=0.1, label='negative (test set)', marker="*", color="green")
-    plt.scatter(x=emb_all_tst_pos[:, 0], y=emb_all_tst_pos[:, 1], alpha=0.1, label='positive (test set)', marker="*", color="firebrick")
+    plt.scatter(x=emb_all_tst_neg[:, 0], y=emb_all_tst_neg[:, 1], alpha=0.1, label='negative (test set)', marker="*", color="firebrick")
+    plt.scatter(x=emb_all_tst_pos[:, 0], y=emb_all_tst_pos[:, 1], alpha=0.1, label='positive (test set)', marker="*", color="green")
     plt.scatter(x=emb_all_amb[:, 0], y=emb_all_amb[:, 1], c=clustering_result, cmap='Set1', alpha=0.8, label='ambiguous images clusters', s=3)
     plt.scatter(x=emb_all_proto[:, 0], y=emb_all_proto[:, 1], marker='X', label='prototypes', c='black')
     plt.title(f"{name} 2D")
