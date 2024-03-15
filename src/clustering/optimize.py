@@ -20,7 +20,7 @@ from skopt.space import Real, Integer, Categorical
 
 # Define the pipeline with UMAP and GMM
 PIPELINE = Pipeline(steps=[
-    ('umap', UMAP(random_state=2)),
+    ('umap', UMAP()),
     ('gmm', GaussianMixture(random_state=2)) # full -> N2D
 ])
 # Define the parameter grid for UMAP and GMM
@@ -65,12 +65,13 @@ def create_cluster_image(config, run_id):
     
     # get embeddings
     with torch.no_grad():
-        embeddings = C_emb(images).cpu().detach().numpy()
+        embeddings_ori = C_emb(images)
+        embeddings = embeddings_ori.detach().cpu().numpy()
 
     # Create GridSearchCV object with silhouette scoring 
     # TODO train test split?
     print("Starting optimization...")
-    bayes_search = BayesSearchCV(PIPELINE, scoring=sil_score, search_spaces=PARAM_SPACE, cv=5, random_state=2, n_jobs=-1, verbose=1, n_iter=50)
+    bayes_search = BayesSearchCV(PIPELINE, scoring=sil_score, search_spaces=PARAM_SPACE, cv=5, random_state=2, n_jobs=-1, verbose=1, n_iter=2)
     bayes_search.fit(embeddings)
     clustering_result = bayes_search.predict(embeddings)
     # get the embeddings reduced
@@ -80,6 +81,7 @@ def create_cluster_image(config, run_id):
     # get prototypes of each cluster
     prototypes = [calculate_medoid(embeddings_red[clustering_result == cl_label]) for cl_label in np.unique(clustering_result) if cl_label >= 0]
     proto_idx = [np.where(np.all(embeddings_red == el, axis=1))[0][0] for el in prototypes]
+    proto_idx_torch = torch.tensor(proto_idx).to(device)
 
     # calculate test embeddings and scores
     print("Calculating test embeddings...")
@@ -88,8 +90,8 @@ def create_cluster_image(config, run_id):
     print("Start reporting...")
     # create wandb report
     create_wandb_report_metrics(wandb, embeddings_red, clustering_result)
-    create_wandb_report_images(wandb, NAME, images, clustering_result, proto_idx)
-    create_wandb_report_2dviz(wandb, NAME, embeddings, embeddings_tst, preds, clustering_result, proto_idx)
+    create_wandb_report_images(wandb, NAME, images, clustering_result, proto_idx_torch)
+    create_wandb_report_2dviz(wandb, NAME, embeddings_ori, embeddings_tst, proto_idx_torch, preds, clustering_result)
 
     wandb.finish()
 

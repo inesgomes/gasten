@@ -134,14 +134,17 @@ def create_cluster_image(config, run_id, dim_red=None, clustering=None):
                     # calculate the medoid per each cluster whose label is >= 0
                     prototypes = [calculate_medoid(embeddings_red[clustering_result == cl_label]) for cl_label in np.unique(clustering_result) if cl_label >= 0]
                     
+               
+
                 if (prototypes is not None) & (proto_idx is None):
                     # find centroids in the original data and get the indice
                     proto_idx = [np.where(np.all(embeddings_red == el, axis=1))[0][0] for el in prototypes]
-            
-                # create wandb report
-                create_wandb_report_metrics(wandb, embeddings_red, clustering_result)
-                create_wandb_report_images(wandb, job_name, images, clustering_result, proto_idx)
-                create_wandb_report_2dviz(wandb, job_name, embeddings, embeddings_tst, preds, clustering_result, proto_idx)
+                    proto_idx_torch = torch.tensor(proto_idx).to(device)
+                
+                    # create wandb report
+                    create_wandb_report_metrics(wandb, embeddings_red, clustering_result)
+                    create_wandb_report_images(wandb, job_name, images, clustering_result, proto_idx_torch)
+                    create_wandb_report_2dviz(wandb, job_name, embeddings, embeddings_tst, proto_idx_torch, preds, clustering_result)
                 
             # close wandb - after each clustering
             wandb.finish()
