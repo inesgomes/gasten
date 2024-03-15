@@ -95,5 +95,4 @@ if __name__ == "__main__":
     args = parse_args()
     # read configs
     config = read_config_clustering(args.config)
-
     hyper_tunning_clusters(config, args.config['gasten']['run_id'], args.clustering_method, args.reduce_method)
