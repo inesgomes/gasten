@@ -1,5 +1,5 @@
 project: gasten_20231211
-name: mnist-8v0
+name: fashion-3v0
 out-dir: out
 data-dir: data
 test-noise: data/z/z_20000_64
@@ -8,14 +8,14 @@ fixed-noise: 20000
 device: cuda:0
 num-workers: 2
 
-num-runs: 1
+num-runs: 3
 
-fid-stats-path: data/fid-stats/stats.inception.mnist.8v0.npz
+fid-stats-path: data/fid-stats/stats.inception.fashion-mnist.3v0.npz
 
 dataset:
-  name: mnist
+  name: fashion-mnist
   binary:
-    pos: 8
+    pos: 3
     neg: 0
 
 model:
@@ -38,18 +38,22 @@ optimizer:
 train:
   step-1:
     epochs: 10
-    checkpoint-every: 1
+    checkpoint-every: 5
     disc-iters: 1
     batch-size: 64
 
   step-2:
-    epochs: 40
-    checkpoint-every: 10
+    epochs: 30
+    checkpoint-every: 5
     step-1-epochs:
+      - 0
+      - 5
       - 10
     batch-size: 64
     disc-iters: 1
-    classifier:
-      - models/mnist.8v0/cnn-2-1.65905
-    weight:
-      - 25
+    classifier: 
+    - fashion-mnist.3v0/cnn-4-3.52011
+    - fashion-mnist.3v0/cnn-8-3.67780
+    - fashion-mnist.3v0/cnn-16-3.7723
+    weight: 
+    - 25

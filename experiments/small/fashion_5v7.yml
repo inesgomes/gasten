@@ -1,0 +1,56 @@
+project: gasten_20231211
+name: fashion-5v7
+out-dir: out
+data-dir: data
+test-noise: data/z/z_2048_64
+fixed-noise: 2048
+
+device: cuda:0
+num-workers: 2
+
+num-runs: 3
+
+fid-stats-path: data/fid-stats/stats.inception.fashion-mnist.5v7.npz
+
+dataset:
+  name: fashion-mnist
+  binary:
+    pos: 5
+    neg: 7
+
+model:
+  z_dim: 64
+  architecture:
+    name: dcgan
+    g_filter_dim: 64
+    d_filter_dim: 64
+    g_num_blocks: 3
+    d_num_blocks: 3
+  loss:
+    name: ns
+
+optimizer:
+  lr: 0.0002
+  beta1: 0.5
+  beta2: 0.999
+
+train:
+  step-1:
+    epochs: 10
+    checkpoint-every: 5
+    disc-iters: 1
+    batch-size: 64
+
+  step-2:
+    epochs: 30
+    checkpoint-every: 5
+    step-1-epochs:
+      - 0
+      - 5
+      - 10
+    batch-size: 64
+    disc-iters: 1
+    classifier: 
+    - TODO
+    weight: 
+    - 25

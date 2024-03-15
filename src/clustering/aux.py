@@ -260,7 +260,7 @@ def create_wandb_report_images(wandb, job_name, images, clustering_result, proto
 
     # save prototypes        
     selected_images = torch.index_select(images, 0, proto_idx)
-    wandb.log({"prototypes": wandb.Image(selected_images, caption=f"{job_name}")})
+    wandb.log({"prototypes": wandb.Image(selected_images, caption=job_name)})
 
 def create_wandb_report_2dviz(wandb, job_name, embeddings, embeddings_tst, proto_idx, preds, clustering_result):
     # TSNE visualizations - merge everything and plot
