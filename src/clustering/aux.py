@@ -1,4 +1,4 @@
-
+import argparse
 import os
 import numpy as np
 from scipy.spatial.distance import cdist
@@ -9,6 +9,17 @@ import pandas as pd
 import torch
 from umap import UMAP
 from src.datasets import load_dataset
+
+def parse_args():
+    """_summary_
+
+    Returns:
+        _type_: _description_
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", dest="config",
+                        required=True, help="Config file from experiments/clustering folder")
+    return parser.parse_args()
 
 
 def get_gasten_info(config):
@@ -27,7 +38,7 @@ def get_gasten_info(config):
     return classifier_name, weight, epoch1
 
 
-def get_gan_path(config, run_id, epoch2):
+def get_gan_path(project, name, run_id, config_run):
     """_summary_
 
     Args:
@@ -41,14 +52,10 @@ def get_gan_path(config, run_id, epoch2):
     Returns:
         _type_: _description_
     """
-    project = config['project']
-    name = config['name']
-    classifier_name, weight, epoch1 = get_gasten_info(config)
-
     # find directory whose name ends with a given id
-    for dir in os.listdir(f"{os.environ['FILESDIR']}/out/{config['project']}/{config['name']}"):
+    for dir in os.listdir(f"{os.environ['FILESDIR']}/out/{project}/{name}"):
         if dir.endswith(run_id):
-            return f"{os.environ['FILESDIR']}/out/{project}/{name}/{dir}/{classifier_name}_{weight}_{epoch1}/{epoch2}"
+            return f"{os.environ['FILESDIR']}/out/{project}/{name}/{dir}/{config_run['classifier']}_{config_run['gasten']['weight']}_{config_run['gasten']['epoch1']}/{config_run['gasten']['epoch2']}"
 
     raise Exception(f"Could not find directory with id {run_id}")
     

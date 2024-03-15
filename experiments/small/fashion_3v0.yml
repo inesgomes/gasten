@@ -8,7 +8,7 @@ fixed-noise: 20000
 device: cuda:0
 num-workers: 2
 
-num-runs: 3
+num-runs: 1
 
 fid-stats-path: data/fid-stats/stats.inception.fashion-mnist.3v0.npz
 

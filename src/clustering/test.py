@@ -15,10 +15,24 @@ from sklearn.mixture import GaussianMixture
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from umap import UMAP
-from src.utils.config import read_config
+from src.utils.config import read_config_clustering
 from src.clustering.aux import calculate_medoid, calculate_test_embeddings, find_closest_point, create_wandb_report_metrics, create_wandb_report_images, create_wandb_report_2dviz
 import torch 
 #from pyclustering.cluster.xmeans import xmeans
+
+
+def parse_args():
+    """_summary_
+
+    Returns:
+        _type_: _description_
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", dest="config",
+                        required=True, help="Config file from experiments/clustering folder")
+    parser.add_argument("--dim_red", dest="dim_red")
+    parser.add_argument("--clustering", dest="clustering")
+    return parser.parse_args()
 
 
 # available reductions and clustering options to test in the pipeline
@@ -41,33 +55,17 @@ CLUSTERING_DICT = {
     'gmm_d3': GaussianMixture(n_components=3, covariance_type='diag', random_state=0),
 }
 
-def parse_args():
-    """_summary_
-
-    Returns:
-        _type_: _description_
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", dest="config",
-                        help="Config file", required=True)
-    parser.add_argument("--run_id", dest="run_id",
-                        help="Experiment ID (seen in wandb) from GAN", required=True)
-    parser.add_argument("--dim_red", dest="dim_red",
-                        help="Dimensionality reduction method", required=False)
-    parser.add_argument("--clustering", dest="clustering",
-                        help="Clustering method", required=False)
-    return parser.parse_args()
-
-def create_cluster_image(config, run_id, dim_red=None, clustering=None):
+def create_cluster_image(config, dim_red=None, clustering=None):
     """_summary_
     """
     # initialize variables
     config_run = {}
     device = config["device"]
-    DIR = f"{os.environ['FILESDIR']}/data/clustering/{run_id}"
+    path = f"{config['dir']['clustering']}/{config['gasten']['run_id']}"
     # the embeddings and the images are saved in the same order
-    C_emb = torch.load(f"{DIR}/classifier_embeddings.pt")
-    images = torch.load(f"{DIR}/images_acd_1.pt").to(device)
+    C_emb = torch.load(f"{path}/classifier_embeddings.pt")
+    thr = int(config['clustering']['acd']*10)
+    images = torch.load(f"{path}/images_acd_{thr}.pt").to(device)
    
     my_clusterings = CLUSTERING_DICT
     my_reductions = REDUCTION_DICT
@@ -82,7 +80,7 @@ def create_cluster_image(config, run_id, dim_red=None, clustering=None):
         embeddings = C_emb(images)
 
     # get test set images
-    embeddings_tst, preds = calculate_test_embeddings(config["dataset"]["name"], config["data-dir"], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], config['train']['step-2']['batch-size'], device, C_emb)
+    embeddings_tst, preds = calculate_test_embeddings(config["dataset"]["name"], config["dir"]["data"], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], config['batch-size'], device, C_emb)
 
     # one wandb run for each clustering
     for cl_name, cl_method in my_clusterings.items():
@@ -153,5 +151,5 @@ if __name__ == "__main__":
     # setup
     load_dotenv()
     args = parse_args()
-    config = read_config(args.config)
-    create_cluster_image(config, args.run_id, args.dim_red, args.clustering)
+    config = read_config_clustering(args.config)
+    create_cluster_image(config, args.dim_red, args.clustering)

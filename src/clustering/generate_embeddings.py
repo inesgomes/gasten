@@ -1,14 +1,7 @@
-"""
-python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_5v3.yml --run_id a3f602un --epoch 10 --acd_threshold=0.1 --save
-python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_8v0.yml --run_id a3f602un --epoch 10 --acd_threshold=0.1 --save
-python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_9v4.yml --run_id ? --epoch 10 --acd_threshold=0.1 --save
-python -m src.clustering.generate_embeddings --config experiments/patterns/fashion_3v0.yml --run_id dux9zf1i --epoch 20 --acd_threshold=0.1 --save
-"""
-import argparse
 import os
 from dotenv import load_dotenv
-from src.utils.config import read_config
-from src.clustering.aux import get_gasten_info, get_gan_path
+from src.utils.config import read_config_clustering
+from src.clustering.aux import get_gan_path, parse_args
 from src.utils.checkpoint import construct_classifier_from_checkpoint, construct_gan_from_checkpoint
 from src.metrics import fid
 from src.datasets import load_dataset
@@ -22,48 +15,24 @@ from umap import UMAP
 import matplotlib.pyplot as plt
 
 
-def parse_args():
-    """_summary_
+def generate_embeddings(config):
 
-    Returns:
-        _type_: _description_
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", dest="config",
-                        help="Config file", required=True)
-    parser.add_argument("--run_id", dest="run_id",
-                        help="Experiment ID (seen in wandb) from GAN", required=True)
-    parser.add_argument("--epoch", dest="gasten_epoch", required=True)
-    parser.add_argument("--acd_threshold", dest="acd_threshold", default=0.1)
-    parser.add_argument("--save", action=argparse.BooleanOptionalAction)
-    parser.add_argument("--calculate_fid", action=argparse.BooleanOptionalAction)
-    return parser.parse_args()
-
-
-if __name__ == "__main__":
-    # setup
-    load_dotenv()
-    args = parse_args()
-
-    # read configs
-    config = read_config(args.config)
     device = config["device"]
-    batch_size = config['train']['step-2']['batch-size']
-    n_images = config['fixed-noise']
-    # prepare wandb info
-    classifier_name, weight, epoch1 = get_gasten_info(config)    
+    batch_size = config['batch-size']
+    run_id = config['gasten']['run-id']
 
     config_run = {
-        'classifier': classifier_name,
+        'classifier': config['gasten']['classifier'].split('/')[-1].split('.')[0],
         'gasten': {
-            'weight': weight,
-            'epoch1': epoch1,
-            'epoch2': args.gasten_epoch,
+            'epoch1': config['gasten']['epoch']['step-1'],
+            'epoch2': config['gasten']['epoch']['step-2'],
+            'weight': config['gasten']['weight']
         },
         'probabilities': {
-            'min': 0.5 - float(args.acd_threshold),
-            'max': 0.5 + float(args.acd_threshold)
-        }
+            'min': 0.5 - config['clustering']['acd'],
+            'max': 0.5 + config['clustering']['acd']
+        },
+        'generated_images': config['clustering']['fixed-noise']
     }
 
     wandb.init(project=config['project'],
@@ -71,17 +40,16 @@ if __name__ == "__main__":
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type='step-3-amb_img_generation',
-                name=args.run_id,
+                name=run_id,
                 config=config_run)
 
     # get GAN
-    gan_path = get_gan_path(
-        config, args.run_id, config_run['gasten']['epoch2'])
+    gan_path = get_gan_path(config['project'], config['name'], run_id, config_run)
     netG, _, _, _ = construct_gan_from_checkpoint(gan_path, device=device)
 
     # get classifier
     C, _, _, _ = construct_classifier_from_checkpoint(
-        config['train']['step-2']['classifier'][0], device=device)
+        config['gasten']['classifier'], device=device)
     C.eval()
 
     # remove last layer of classifier to get the embeddings
@@ -89,7 +57,7 @@ if __name__ == "__main__":
     C_emb.eval()
 
     # get test set 
-    test_set = load_dataset(config["dataset"]["name"], config["data-dir"], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], train=False)[0]
+    test_set = load_dataset(config["dataset"]["name"], config["dir"]["data"], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], train=False)[0]
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False)
 
     # get the test set embeddings + predictions
@@ -105,13 +73,13 @@ if __name__ == "__main__":
     pred_tst = torch.cat(pred_tst_array, dim=0).cpu().detach().numpy()
 
     # prepare FID calculation
-    if args.calculate_fid:
+    if config['compute_fid']:
         mu, sigma = fid.load_statistics_from_path(config['fid-stats-path'])
         fm_fn, dims = fid.get_inception_feature_map_fn(device)
-        fid_metric = fid.FID(fm_fn, dims, n_images, mu, sigma, device=device)
+        fid_metric = fid.FID(fm_fn, dims, config_run['generated_images'], mu, sigma, device=device)
 
     # create fake images
-    test_noise = torch.randn(n_images, config["model"]["z_dim"], device=device)
+    test_noise = torch.randn(config_run['generated_images'], config["model"]["z_dim"], device=device)
     noise_loader = DataLoader(TensorDataset(test_noise), batch_size=batch_size, shuffle=False)
     images_array = []
     for idx, batch in enumerate(tqdm(noise_loader, desc='Evaluating fake images')):
@@ -121,8 +89,8 @@ if __name__ == "__main__":
             batch_images = netG(*batch)
         
         # calculate FID score - all images
-        if args.calculate_fid:
-            max_size = min(idx*batch_size, n_images)
+        if config['compute_fid']:
+            max_size = min(idx*batch_size, config_run['generated_images'])
             fid_metric.update(batch_images, (idx*batch_size, max_size))
             # FID for fake images
             wandb.log({"fid_score_all": fid_metric.finalize()})
@@ -147,10 +115,10 @@ if __name__ == "__main__":
     wandb.log({"n_ambiguous_images": n_amb_img})
 
     # calculate FID score in batches - ambiguous images
-    if args.calculate_fid:
+    if config['compute_fid']:
         image_loader = DataLoader(TensorDataset(images_mask), batch_size=batch_size, shuffle=False)
         for idx, batch in enumerate(tqdm(image_loader, desc='Evaluating ambiguous fake images')):
-            max_size = min(idx*batch_size, n_images)
+            max_size = min(idx*batch_size, config_run['generated_images'])
             fid_metric.update(*batch, (idx*batch_size, max_size))
     
         wandb.log({"fid_score_ambiguous": fid_metric.finalize()})
@@ -161,13 +129,13 @@ if __name__ == "__main__":
         embeddings_f = C_emb(images_mask)
 
     # save embeddings and images
-    if args.save:
+    if config['checkpoint']:
         print("saving data...")
-        DIR = f"{os.environ['FILESDIR']}/data/clustering/{args.run_id}"
+        DIR = f"{config['dir']['clustering']}/{run_id}"
         if not os.path.exists(DIR):
             os.makedirs(DIR)
         torch.save(C_emb, f"{DIR}/classifier_embeddings.pt")
-        thr =int(float(args.acd_threshold)*10)
+        thr = int(config['clustering']['acd']*10)
         torch.save(images_mask, f"{DIR}/images_acd_{thr}.pt")
 
     # prepare viz
@@ -217,3 +185,11 @@ if __name__ == "__main__":
 
     # close wandb
     wandb.finish()
+
+
+if __name__ == "__main__":
+    # setup
+    load_dotenv()
+    args = parse_args()
+    config = read_config_clustering(args.config)
+    generate_embeddings(config)
