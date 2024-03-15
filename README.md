@@ -56,28 +56,17 @@ Run saliency_maps:
 `python -m src.xai.saliency_maps --type vae --no 7`
 `python -m src.xai.saliency_maps --type test`
 
+python -m src --config experiments/patterns/mnist_5v3.yml && python -m src --config experiments/patterns/mnist_8v0.yml && python -m src --config experiments/patterns/mnist_9v4.yml && python -m src --config experiments/patterns/fashion_3v0.yml
+
 ### Clustering module
 
-- generate images and embeddings (step 1)
-    - run_id based on previously trained GASTeN. Check run_id in wandb (as job_name)
+| Step | Description                                                   | command                                                                |
+|------|---------------------------------------------------------------|------------------------------------------------------------------------|
+| 1    | generate images and embeddings, for a given ACD threshold     | `python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_7v1.yml --run_id 0hvkl8kz --epoch 10 --acd_threshold=0.1 --save`                                   |
+| 2 | Clustering optimization for one dimensionality reduction / clustering technique pair  | `python -m src.clustering.optimize --config experiments/patterns/mnist_7v1.yml --run_id 0hvkl8kz` |
+| optional    | Testing dimensionality reduction and clustering pairs |`python -m src.clustering.test --config experiments/patterns/mnist_7v1.yml --run_id 0hvkl8kz --dim_red umap_80 --clustering gmm_d3`    |
 
-`python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_7v1.yml --run_id 0hvkl8kz --epoch 10 --acd_threshold=0.1 --save`
-`python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_5v3.yml --run_id ? --epoch 10 --acd_threshold=0.1 --save`
-`python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_8v0.yml --run_id ? --epoch 10 --acd_threshold=0.1 --save`
-`python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_9v4.yml --run_id ? --epoch 10 --acd_threshold=0.1 --save`
-
-- Testing dimensionality reduction and clustering pairs 
-    - dataset ID comes from generate embeddings
-    - suggested values come from paper
-
-`python -m src.clustering.test --config experiments/patterns/mnist_7v1.yml --run_id 0hvkl8kz --dim_red umap_80 --clustering gmm_d3`
-`python -m src.clustering.test --config experiments/patterns/mnist_5v3.yml --run_id ? --dim_red umap_10 --clustering gmm_s4`
-`python -m src.clustering.test --config experiments/patterns/mnist_8v0.yml --run_id ? --dim_red umap_80 --clustering gmm_s3`
-`python -m src.clustering.test --config experiments/patterns/mnist_9v4.yml --run_id ? --dim_red umap_80 --clustering gmm_s3`
-
-- Clustering optimization for one dimensionality reduction / clustering technique pair:
-
-`python -m src.clustering.optimize --config experiments/patterns/mnist_7v1.yml --run_id 0hvkl8kz --epoch 10`
-`python -m src.clustering.optimize --config experiments/patterns/mnist_5v3.yml --run_id ? --epoch 10`
-`python -m src.clustering.optimize --config experiments/patterns/mnist_8v0.yml --run_id ? --epoch 10`
-`python -m src.clustering.optimize --config experiments/patterns/mnist_9v4.yml --run_id ? --epoch 10`
+Some hints:
+- run_id based on previously trained GASTeN. Check run_id in wandb (as job_name).
+- select the GAN epoch that seems to yeld lost FID and ACD scores
+- the test.py options are available in the dictionary on the python file

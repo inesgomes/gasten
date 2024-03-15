@@ -2,8 +2,8 @@ project: gasten_20231211
 name: mnist-9v4
 out-dir: out
 data-dir: data
-test-noise: data/z/z_2048_64
-fixed-noise: 2048
+test-noise: data/z/z_20000_64
+fixed-noise: 20000
 
 device: cuda:0
 num-workers: 2

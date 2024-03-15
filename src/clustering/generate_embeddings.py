@@ -1,6 +1,11 @@
+"""
+python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_5v3.yml --run_id a3f602un --epoch 10 --acd_threshold=0.1 --save
+python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_8v0.yml --run_id a3f602un --epoch 10 --acd_threshold=0.1 --save
+python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_9v4.yml --run_id ? --epoch 10 --acd_threshold=0.1 --save
+python -m src.clustering.generate_embeddings --config experiments/patterns/fashion_3v0.yml --run_id dux9zf1i --epoch 20 --acd_threshold=0.1 --save
+"""
 import argparse
 import os
-from datetime import datetime
 from dotenv import load_dotenv
 from src.utils.config import read_config
 from src.clustering.aux import get_gasten_info, get_gan_path

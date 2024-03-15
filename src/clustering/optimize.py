@@ -1,24 +1,36 @@
+"""
+python -m src.clustering.optimize --config experiments/patterns/mnist_5v3.yml --run_id a3f602un --epoch 10
+python -m src.clustering.optimize --config experiments/patterns/mnist_8v0.yml --run_id qazkm46b --epoch 10
+python -m src.clustering.optimize --config experiments/patterns/mnist_9v4.yml --run_id lxshxwgn --epoch 10
+"""
 import os
 import argparse
-from datetime import datetime
 import numpy as np
 import torch
 import wandb
 from dotenv import load_dotenv
-from src.clustering.aux import get_gasten_info, get_gan_path, calculate_medoid
-from src.metrics import fid
+from src.clustering.aux import calculate_medoid, sil_score, create_wandb_report_metrics, create_wandb_report_images, create_wandb_report_2dviz, calculate_test_embeddings
 from src.utils.config import read_config
-from src.utils.checkpoint import construct_classifier_from_checkpoint, construct_gan_from_checkpoint
-from sklearn.mixture import BayesianGaussianMixture, GaussianMixture
-from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
+from sklearn.mixture import GaussianMixture
 from sklearn.pipeline import Pipeline
 from umap import UMAP
-import pandas as pd
 from skopt import BayesSearchCV
 from skopt.space import Real, Integer, Categorical
-from tqdm import tqdm
-from torch.utils.data import TensorDataset, DataLoader
 
+
+# Define the pipeline with UMAP and GMM
+PIPELINE = Pipeline(steps=[
+    ('umap', UMAP(random_state=2)),
+    ('gmm', GaussianMixture(random_state=2)) # full -> N2D
+])
+# Define the parameter grid for UMAP and GMM
+PARAM_SPACE = {
+    'umap__n_neighbors': Integer(5, 25), #N2D: 20
+    'umap__min_dist': Real(0.01, 0.5), #N2D: 0; 
+    'umap__n_components': Integer(10, 100), #GEORGE 1, 2
+    'gmm__n_components': Integer(3, 15),
+    'gmm__covariance_type': Categorical(['full', 'diag', 'spherical']) # tied
+}
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -26,189 +38,66 @@ def parse_args():
                         help="Config file", required=True)
     parser.add_argument("--run_id", dest="run_id",
                         help="Experiment ID (seen in wandb)", required=True)
-    parser.add_argument("--epoch", dest="gasten_epoch", required=True)
-    parser.add_argument("--acd_threshold", dest="acd_threshold", default=0.1)
     return parser.parse_args()
 
 
-def create_cluster_image():
-
-    # TODO check this out, maybe the generate_embeddings already creates part of the pipeline
-
-    # setup
-    load_dotenv()
-    args = parse_args()
-
-    SKIP_FID_SCORE = True
-
-    # read configs
-    config = read_config(args.config)
+def create_cluster_image(config, run_id):
+   
     device = config["device"]
-    batch_size = config['train']['step-2']['batch-size']
-    n_images = config['fixed-noise']
-    # prepare wandb info
-    dataset_id = datetime.now().strftime("%b%dT%H-%M")
-    classifier_name, weight, epoch1 = get_gasten_info(config)   
+    DIR = f"{os.environ['FILESDIR']}/data/clustering/{run_id}"
+    # the embeddings and the images are saved in the same order
+    C_emb = torch.load(f"{DIR}/classifier_embeddings.pt")
+    images = torch.load(f"{DIR}/images_acd_1.pt").to(device)
 
     config_run = {
-        'classifier': classifier_name,
-        'gasten': {
-            'weight': weight,
-            'epoch1': epoch1,
-            'epoch2': args.gasten_epoch,
-        },
-        'probabilities': {
-            'min': 0.5 - args.acd_threshold,
-            'max': 0.5 + args.acd_threshold
-        }
+        'clustering_method': 'gmm',
+        'reduce_method': 'umap'
     }
+    NAME = config_run['clustering_method']+'_'+config_run['reduce_method']
 
     wandb.init(project=config['project'],
                 dir=os.environ['FILESDIR'],
                 group=config['name'],
                 entity=os.environ['ENTITY'],
-                job_type='step-3-amb_img_generation',
-                name=dataset_id,
+                job_type=f'step-4-clustering_optimize_{NAME}',
+                name=f"{run_id}",
                 config=config_run)
-
-    # get GAN
-    gan_path = get_gan_path(
-        config, args.run_id, config_run['gasten']['epoch2'])
-    netG, _, _, _ = construct_gan_from_checkpoint(gan_path, device=device)
-
-    # get classifier
-    C, _, _, _ = construct_classifier_from_checkpoint(
-        config['train']['step-2']['classifier'][0], device=device)
-
-    # remove last layer of classifier to get the embeddings
-    C_emb = torch.nn.Sequential(*list(C.children())[0][:-1])
-
-    # prepare FID calculation
-    if not SKIP_FID_SCORE:
-        mu, sigma = fid.load_statistics_from_path(config['fid-stats-path'])
-        fm_fn, dims = fid.get_inception_feature_map_fn(device)
-        fid_metric = fid.FID(fm_fn, dims, n_images, mu, sigma, device=device)
-
-    # create fake images
-    test_noise = torch.randn(n_images, config["model"]["z_dim"], device=device)
-    noise_loader = DataLoader(TensorDataset(test_noise), batch_size=batch_size, shuffle=False)
-    images_array = []
-    desc = 'Generating fake images' if SKIP_FID_SCORE else 'Evaluating fake images'
-    for idx, batch in enumerate(tqdm(noise_loader, desc=desc)):
-        with torch.no_grad():
-            netG.eval()
-            batch_images = netG(*batch)
-        images_array.append(batch_images)
-        
-        # calculate FID score - all images
-        if not SKIP_FID_SCORE:
-            max_size = min(idx*batch_size, n_images)
-            fid_metric.update(batch_images, (idx*batch_size, max_size))
-        
-
-    # FID for fake images
-    if not SKIP_FID_SCORE:
-        wandb.log({"fid_score_all": fid_metric.finalize()})
-        fid_metric.reset()
-
-    # Concatenate batches into a single array
-    images = torch.cat(images_array, dim=0)
-
-    # apply classifier to fake images
+    
+    # get embeddings
     with torch.no_grad():
-        C.to(device)
-        C.eval()
-        pred = C(images)
-
-    # filter images so that ACD < threshold
-    mask = (pred >= config_run['probabilities']['min']) & (pred <= config_run['probabilities']['max'])
-    images_mask = images[mask]
-
-    # point to the original positions (needed later for viz)
-    original_pos = np.where(mask.cpu().detach().numpy())[0]
-
-    # count the ambig images
-    n_amb_img = images_mask.shape[0]
-    wandb.log({"n_ambiguous_images": n_amb_img})
-
-    # calculate FID score in batches - ambiguous images
-    if not SKIP_FID_SCORE:
-        image_loader = DataLoader(TensorDataset(images_mask), batch_size=batch_size, shuffle=False)
-        for idx, batch in enumerate(tqdm(image_loader, desc='Evaluating ambiguous fake images')):
-            max_size = min(idx*batch_size, n_images)
-            fid_metric.update(*batch, (idx*batch_size, max_size))
-        
-        wandb.log({"fid_score_ambiguous": fid_metric.finalize()})
-        fid_metric.reset()
-
-    # get the embeddings for the ambiguous images
-    with torch.no_grad():
-        C_emb.to(device)
-        C_emb.eval()
-        embeddings_f = C_emb(images_mask).cpu().detach().numpy()
-   
-    # close wandb
-    wandb.finish()
-
-    config_run['clustering_method'] = 'gmm'
-    config_run['reduce_method'] = 'umap'
-    wandb.init(project=config['project'],
-                dir=os.environ['FILESDIR'],
-                group=config['name'],
-                entity=os.environ['ENTITY'],
-                job_type='step-4-clustering_optimize_'+config_run['clustering_method']+'_'+config_run['reduce_method'],
-                name=f"{dataset_id}_v2",
-                config=config_run)
-
-    # Define the pipeline with UMAP and GMM
-    pipeline = Pipeline(steps=[
-        ('umap', UMAP()),
-        ('gmm', GaussianMixture(random_state=2)) # full -> N2D
-    ])
-    # Define the parameter grid for UMAP and GMM
-    param_space = {
-        'umap__n_neighbors': Integer(5, 25), #N2D: 20
-        'umap__min_dist': Real(0.01, 0.5), #N2D: 0; 
-        'umap__n_components': Integer(10, 100), #GEORGE 1, 2
-        'gmm__n_components': Integer(3, 15),
-        'gmm__covariance_type': Categorical(['full', 'diag', 'spherical']) # tied
-    }
+        embeddings = C_emb(images).cpu().detach().numpy()
 
     # Create GridSearchCV object with silhouette scoring 
-    bayes_search = BayesSearchCV(pipeline, scoring=sil_score, search_spaces=param_space, cv=5, random_state=2, n_jobs=6, verbose=1, n_iter=50)
-    bayes_search.fit(embeddings_f)
-    clustering_result = bayes_search.predict(embeddings_f)
+    # TODO train test split?
+    print("Starting optimization...")
+    bayes_search = BayesSearchCV(PIPELINE, scoring=sil_score, search_spaces=PARAM_SPACE, cv=5, random_state=2, n_jobs=-1, verbose=1, n_iter=50)
+    bayes_search.fit(embeddings)
+    clustering_result = bayes_search.predict(embeddings)
     # get the embeddings reduced
-    embeddings_red = bayes_search.best_estimator_['umap'].transform(embeddings_f)
+    embeddings_red = bayes_search.best_estimator_['umap'].transform(embeddings)
     print(bayes_search.best_params_)
-
-    # evaluate the clustering
-    wandb.log({"silhouette_score": silhouette_score(embeddings_red, clustering_result)})
-    wandb.log({"calinski_harabasz_score": calinski_harabasz_score(embeddings_red, clustering_result)})
-    wandb.log({"davies_bouldin_score": davies_bouldin_score(embeddings_red, clustering_result)})
-    # log cluster information
-    wandb.log({"n_clusters": np.unique(clustering_result)})
-    cluster_sizes = pd.Series(clustering_result).value_counts().reset_index()
-    wandb.log({"cluster_sizes": wandb.Table(dataframe=cluster_sizes)})
-
-    # save images per cluster
-    for cl_label, cl_examples in pd.DataFrame({'cluster': clustering_result, 'original_pos': original_pos}).groupby('cluster'):
-        # get the original image positions
-        mask = np.full(n_images, False)
-        mask[cl_examples['original_pos']] = True
-        wandb.log({"cluster_images": wandb.Image(images[mask], caption=f"gmm_umap | Label {cl_label} | (N = {cl_examples.shape[0]})")})
 
     # get prototypes of each cluster
     prototypes = [calculate_medoid(embeddings_red[clustering_result == cl_label]) for cl_label in np.unique(clustering_result) if cl_label >= 0]
     proto_idx = [np.where(np.all(embeddings_red == el, axis=1))[0][0] for el in prototypes]
 
-    # save images
-    mask = np.full(n_images, False)
-    mask[original_pos[proto_idx]] = True
-    wandb.log({"prototypes": wandb.Image(images[mask], caption="gmm_umap")})
+    # calculate test embeddings and scores
+    print("Calculating test embeddings...")
+    embeddings_tst, preds = calculate_test_embeddings(config["dataset"]["name"], config["data-dir"], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], config['train']['step-2']['batch-size'], device, C_emb)
+
+    print("Start reporting...")
+    # create wandb report
+    create_wandb_report_metrics(wandb, embeddings_red, clustering_result)
+    create_wandb_report_images(wandb, NAME, images, clustering_result, proto_idx)
+    create_wandb_report_2dviz(wandb, NAME, embeddings, embeddings_tst, preds, clustering_result, proto_idx)
 
     wandb.finish()
 
 
 if __name__ == "__main__":
-    create_cluster_image()
+    # setup
+    load_dotenv()
+    args = parse_args()
+    # read configs
+    config = read_config(args.config)
+    create_cluster_image(config, args.run_id)
