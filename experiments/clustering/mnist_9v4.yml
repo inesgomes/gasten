@@ -22,9 +22,11 @@ gasten:
     step-1: 10
     step-2: 10
   weight: 25
-  run_id: 
+  run_id: TODO
 
 clustering:
   z-dim: 64
   fixed-noise: 20000
   acd: 0.1
+  dim-reduction: umap
+  clustering: gmm

@@ -1,28 +1,28 @@
 project: gasten_20231211
-name: mnist-7v1
+name: mnist-8v0
+data-dir: data
+clustering-dir: data/clustering
 device: cuda:0
 batch-size: 64
 checkpoint: True
-compute-fid: False
 
-dir:
-  data: data
-  clustering: data/clustering
-  fid-stats: data/fid-stats/stats.inception.mnist.7v1.npz
+fid:
+  compute: True
+  stats-path: data/fid-stats/stats.inception.mnist.8v0.npz
 
 dataset:
   name: mnist
   binary:
-    pos: 7
-    neg: 1
+    pos: 8
+    neg: 0
 
 gasten:
-  classifier: models/mnist.7v1/cnn-2-1.37197
+  classifier: models/mnist.8v0/cnn-2-1.65905
   epoch:
     step-1: 10
     step-2: 10
   weight: 25
-  run_id: maw2gmlz
+  run_id: TODO
 
 clustering:
   z-dim: 64

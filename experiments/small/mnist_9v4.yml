@@ -35,12 +35,17 @@ optimizer:
   beta1: 0.5
   beta2: 0.999
 
-step-2:
+train:
+  step-1:
+    epochs: 10
+    checkpoint-every: 5
+    disc-iters: 1
+    batch-size: 64
+
+  step-2:
     epochs: 20
     checkpoint-every: 5
     step-1-epochs:
-      - 0
-      - 2
       - 5
     batch-size: 64
     disc-iters: 1

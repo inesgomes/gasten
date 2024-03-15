@@ -1,5 +1,5 @@
 project: gasten_20231211
-name: mnist-5v3
+name: fashion-5v7
 data-dir: data
 clustering-dir: data/clustering
 device: cuda:0
@@ -8,21 +8,21 @@ checkpoint: True
 
 fid:
   compute: True
-  stats-path: data/fid-stats/stats.inception.mnist.5v3.npz
+  stats-path: data/fid-stats/stats.inception.fashion-mnist.5v7.npz
 
 dataset:
-  name: mnist
+  name: fashion-mnist
   binary:
     pos: 5
-    neg: 3
+    neg: 7
 
 gasten:
-  classifier: models/mnist.5v3/cnn-2-1.2088
+  classifier: todo
   epoch:
-    step-1: 10
-    step-2: 10
+    step-1: todo
+    step-2: todo
   weight: 25
-  run_id: TODO
+  run_id: todo
 
 clustering:
   z-dim: 64
