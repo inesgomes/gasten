@@ -1,14 +1,14 @@
 project: gasten_20231211
 name: fashion-5v7
-data-dir: data
-clustering-dir: data/clustering
 device: cuda:0
 batch-size: 64
 checkpoint: True
+compute-fid: False
 
-fid:
-  compute: True
-  stats-path: data/fid-stats/stats.inception.fashion-mnist.5v7.npz
+dir:
+  data: data
+  clustering: data/clustering
+  fid-stats: data/fid-stats/stats.inception.fashion-mnist.5v7.npz
 
 dataset:
   name: fashion-mnist
@@ -17,12 +17,12 @@ dataset:
     neg: 7
 
 gasten:
-  classifier: todo
+  classifier: models/fashion-mnist.5v7/cnn-8-3.75424
   epoch:
-    step-1: todo
-    step-2: todo
+    step-1: 5
+    step-2: 10
   weight: 25
-  run_id: todo
+  run-id: hyvj1lyo
 
 clustering:
   z-dim: 64

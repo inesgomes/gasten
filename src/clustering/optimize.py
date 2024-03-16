@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import wandb
 from dotenv import load_dotenv
-from src.clustering.aux import parse_args, calculate_medoid, sil_score, create_wandb_report_metrics, create_wandb_report_images, create_wandb_report_2dviz, calculate_test_embeddings
+from src.clustering.aux import parse_args, get_clustering_path, calculate_medoid, sil_score, create_wandb_report_metrics, create_wandb_report_images, create_wandb_report_2dviz, calculate_test_embeddings
 from src.utils.config import read_config_clustering
 from sklearn.mixture import GaussianMixture
 from sklearn.pipeline import Pipeline
@@ -26,26 +26,28 @@ PARAM_SPACE = {
     'gmm__covariance_type': Categorical(['full', 'diag', 'spherical']) # tied
 }
 
-def hyper_tunning_clusters(config):
+def hyper_tunning_clusters(config, classifier):
 
     # confirm that we are working with the expected algorithms
-    if PIPELINE.steps[0] != config['clustering']['dim-reduction']:
+    if PIPELINE.steps[0][0] != config['clustering']['dim-reduction']:
         print("Error: please modify PIPELINE and PARAM_SPACE  to receive the expected dimensionality reduction method")
         exit(1)
-    if PIPELINE.steps[1] != config['clustering']['clustering']:
+    if PIPELINE.steps[1][0] != config['clustering']['clustering']:
         print("Error: please modify PIPELINE and PARAM_SPACE to receive the expected clustering method")
         exit(1)
    
     device = config["device"]
-    DIR = f"{os.environ['FILESDIR']}/{config['clustering']['data-dir']}/{config['gasten']['run_id']}"
+    classifier_name = classifier.split('/')[-1]
+    path = get_clustering_path(config['dir']['clustering'], config['gasten']['run-id'], classifier_name)
+    print(path)
     # the embeddings and the images are saved in the same order
-    C_emb = torch.load(f"{DIR}/classifier_embeddings.pt")
-    acd = int(float(config['clustering']['acd'])*10)
-    images = torch.load(f"{DIR}/images_acd_{acd}.pt").to(device)
+    C_emb = torch.load(f"{path}/classifier_embeddings.pt")
+    acd = int(config['clustering']['acd']*10)
+    images = torch.load(f"{path}/images_acd_{acd}.pt").to(device)
 
     config_run = {
-        'reduce_method': config['clustering']['dim-reduction']
-        'clustering_method': config['clustering']['clustering'],
+        'reduce_method': config['clustering']['dim-reduction'],
+        'clustering_method': config['clustering']['clustering']
     }
     NAME = config_run['clustering_method']+'_'+config_run['reduce_method']
 
@@ -54,7 +56,7 @@ def hyper_tunning_clusters(config):
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type=f'step-4-clustering_optimize_{NAME}',
-                name=f"{config['gasten']['run_id']}",
+                name=f"{config['gasten']['run-id']}",
                 config=config_run)
     
     # get embeddings
@@ -64,6 +66,7 @@ def hyper_tunning_clusters(config):
 
     # Create GridSearchCV object with silhouette scoring 
     print("Starting optimization...")
+    # TODO change n_iter=70
     bayes_search = BayesSearchCV(PIPELINE, scoring=sil_score, search_spaces=PARAM_SPACE, cv=5, random_state=2, n_jobs=-1, verbose=1, n_iter=2)
     bayes_search.fit(embeddings)
     clustering_result = bayes_search.predict(embeddings)
@@ -78,7 +81,7 @@ def hyper_tunning_clusters(config):
 
     # calculate test embeddings and scores
     print("Calculating test embeddings...")
-    embeddings_tst, preds = calculate_test_embeddings(config["dataset"]["name"], config["data-dir"], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], config['batch-size'], device, C_emb)
+    embeddings_tst, preds = calculate_test_embeddings(config["dataset"]["name"], config["dir"]['data'], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], config['batch-size'], device, C_emb)
 
     print("Start reporting...")
     # create wandb report
@@ -95,4 +98,4 @@ if __name__ == "__main__":
     args = parse_args()
     # read configs
     config = read_config_clustering(args.config)
-    hyper_tunning_clusters(config, args.config['gasten']['run_id'], args.clustering_method, args.reduce_method)
+    hyper_tunning_clusters(config, config['gasten']['classifier'][0])

@@ -71,7 +71,6 @@ Some hints:
 - select the GAN epoch that seems to yeld lost FID and ACD scores
 - the test.py options are available in the dictionary on the python file
 
-
 ### Interpretability module
 
 This module includes some experiments to understand GASTeN synthetically generated images.

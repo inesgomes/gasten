@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from src.utils.config import read_config_clustering
-from src.clustering.aux import get_gan_path, parse_args
+from src.clustering.aux import get_gan_path, parse_args, get_clustering_path
 from src.utils.checkpoint import construct_classifier_from_checkpoint, construct_gan_from_checkpoint
 from src.metrics import fid
 from src.datasets import load_dataset
@@ -15,14 +15,14 @@ from umap import UMAP
 import matplotlib.pyplot as plt
 
 
-def generate_embeddings(config):
+def generate_embeddings(config, classifier):
 
     device = config["device"]
     batch_size = config['batch-size']
     run_id = config['gasten']['run-id']
 
     config_run = {
-        'classifier': config['gasten']['classifier'].split('/')[-1].split('.')[0],
+        'classifier': classifier.split('/')[-1].split('.')[0],
         'gasten': {
             'epoch1': config['gasten']['epoch']['step-1'],
             'epoch2': config['gasten']['epoch']['step-2'],
@@ -49,7 +49,7 @@ def generate_embeddings(config):
 
     # get classifier
     C, _, _, _ = construct_classifier_from_checkpoint(
-        config['gasten']['classifier'], device=device)
+        classifier, device=device)
     C.eval()
 
     # remove last layer of classifier to get the embeddings
@@ -73,13 +73,13 @@ def generate_embeddings(config):
     pred_tst = torch.cat(pred_tst_array, dim=0).cpu().detach().numpy()
 
     # prepare FID calculation
-    if config['compute_fid']:
-        mu, sigma = fid.load_statistics_from_path(config['fid-stats-path'])
+    if config['compute-fid']:
+        mu, sigma = fid.load_statistics_from_path(config['dir']['fid-stats'])
         fm_fn, dims = fid.get_inception_feature_map_fn(device)
         fid_metric = fid.FID(fm_fn, dims, config_run['generated_images'], mu, sigma, device=device)
 
     # create fake images
-    test_noise = torch.randn(config_run['generated_images'], config["model"]["z_dim"], device=device)
+    test_noise = torch.randn(config_run['generated_images'], config["clustering"]["z-dim"], device=device)
     noise_loader = DataLoader(TensorDataset(test_noise), batch_size=batch_size, shuffle=False)
     images_array = []
     for idx, batch in enumerate(tqdm(noise_loader, desc='Evaluating fake images')):
@@ -89,7 +89,7 @@ def generate_embeddings(config):
             batch_images = netG(*batch)
         
         # calculate FID score - all images
-        if config['compute_fid']:
+        if config['compute-fid']:
             max_size = min(idx*batch_size, config_run['generated_images'])
             fid_metric.update(batch_images, (idx*batch_size, max_size))
             # FID for fake images
@@ -115,7 +115,7 @@ def generate_embeddings(config):
     wandb.log({"n_ambiguous_images": n_amb_img})
 
     # calculate FID score in batches - ambiguous images
-    if config['compute_fid']:
+    if config['compute-fid']:
         image_loader = DataLoader(TensorDataset(images_mask), batch_size=batch_size, shuffle=False)
         for idx, batch in enumerate(tqdm(image_loader, desc='Evaluating ambiguous fake images')):
             max_size = min(idx*batch_size, config_run['generated_images'])
@@ -131,12 +131,10 @@ def generate_embeddings(config):
     # save embeddings and images
     if config['checkpoint']:
         print("saving data...")
-        DIR = f"{config['dir']['clustering']}/{run_id}"
-        if not os.path.exists(DIR):
-            os.makedirs(DIR)
-        torch.save(C_emb, f"{DIR}/classifier_embeddings.pt")
+        path = get_clustering_path(config['dir']['clustering'], config['gasten']['run-id'], classifier.split('/')[-1])
+        torch.save(C_emb, f"{path}/classifier_embeddings.pt")
         thr = int(config['clustering']['acd']*10)
-        torch.save(images_mask, f"{DIR}/images_acd_{thr}.pt")
+        torch.save(images_mask, f"{path}/images_acd_{thr}.pt")
 
     # prepare viz
     print("Start visualizing embeddings...")
@@ -192,4 +190,5 @@ if __name__ == "__main__":
     load_dotenv()
     args = parse_args()
     config = read_config_clustering(args.config)
-    generate_embeddings(config)
+    for classifier in config['gasten']['classifier']:
+        generate_embeddings(config, classifier)

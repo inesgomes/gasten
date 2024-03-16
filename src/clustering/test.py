@@ -16,7 +16,7 @@ from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from umap import UMAP
 from src.utils.config import read_config_clustering
-from src.clustering.aux import calculate_medoid, calculate_test_embeddings, find_closest_point, create_wandb_report_metrics, create_wandb_report_images, create_wandb_report_2dviz
+from src.clustering.aux import get_clustering_path, calculate_medoid, calculate_test_embeddings, find_closest_point, create_wandb_report_metrics, create_wandb_report_images, create_wandb_report_2dviz
 import torch 
 #from pyclustering.cluster.xmeans import xmeans
 
@@ -55,13 +55,14 @@ CLUSTERING_DICT = {
     'gmm_d3': GaussianMixture(n_components=3, covariance_type='diag', random_state=0),
 }
 
-def create_cluster_image(config, dim_red=None, clustering=None):
+def create_cluster_image(config, classifier, dim_red=None, clustering=None):
     """_summary_
     """
     # initialize variables
     config_run = {}
     device = config["device"]
-    path = f"{config['dir']['clustering']}/{config['gasten']['run_id']}"
+    classifier_name = classifier.split('/')[-1]
+    path = get_clustering_path(config['dir']['clustering'], config['gasten']['run-id'], classifier_name)
     # the embeddings and the images are saved in the same order
     C_emb = torch.load(f"{path}/classifier_embeddings.pt")
     thr = int(config['clustering']['acd']*10)
@@ -95,7 +96,7 @@ def create_cluster_image(config, dim_red=None, clustering=None):
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type=f'step-4-clustering_{job_name}',
-                name=f"{run_id}_v3",
+                name=f"{config['gasten']['run-id']}_v3",
                 config=config_run)
             
             # apply reduction method
@@ -132,8 +133,6 @@ def create_cluster_image(config, dim_red=None, clustering=None):
                     # calculate the medoid per each cluster whose label is >= 0
                     prototypes = [calculate_medoid(embeddings_red[clustering_result == cl_label]) for cl_label in np.unique(clustering_result) if cl_label >= 0]
                     
-               
-
                 if (prototypes is not None) & (proto_idx is None):
                     # find centroids in the original data and get the indice
                     proto_idx = [np.where(np.all(embeddings_red == el, axis=1))[0][0] for el in prototypes]
@@ -146,6 +145,7 @@ def create_cluster_image(config, dim_red=None, clustering=None):
                 
             # close wandb - after each clustering
             wandb.finish()
+
 
 if __name__ == "__main__":
     # setup

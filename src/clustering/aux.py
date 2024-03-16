@@ -4,11 +4,13 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
 from sklearn.manifold import TSNE
+from sklearn.neighbors import KernelDensity
 import matplotlib.pyplot as plt
 import pandas as pd
 import torch
 from umap import UMAP
 from src.datasets import load_dataset
+
 
 def parse_args():
     """_summary_
@@ -21,6 +23,11 @@ def parse_args():
                         required=True, help="Config file from experiments/clustering folder")
     return parser.parse_args()
 
+def get_clustering_path(clustering_path, run_id, classifier):
+    path = f"{clustering_path}/{run_id}/{classifier}"
+    if not os.path.exists(path):
+        os.makedirs(path)
+    return path
 
 def get_gasten_info(config):
     """_summary_
@@ -247,6 +254,25 @@ def viz_2d_all(viz_embeddings, n_tst, n_protos, preds, clustering_result, name):
     
     return plt
 
+def boundary_coverage(reduced_embeddings):
+    # Apply Kernel Density Estimation on the reduced embeddings
+    kde = KernelDensity(bandwidth=1.0, kernel='gaussian')
+    kde.fit(reduced_embeddings)
+
+    # Evaluate the density model on a grid
+    x_min, x_max = reduced_embeddings[:, 0].min() - 1, reduced_embeddings[:, 0].max() + 1
+    y_min, y_max = reduced_embeddings[:, 1].min() - 1, reduced_embeddings[:, 1].max() + 1
+    x_grid, y_grid = np.linspace(x_min, x_max, 100), np.linspace(y_min, y_max, 100)
+    X, Y = np.meshgrid(x_grid, y_grid)
+    XY_grid = np.vstack([X.ravel(), Y.ravel()]).T
+    Z = np.exp(kde.score_samples(XY_grid))  # score_samples returns log density
+
+    # Plot the density estimate
+    Z = Z.reshape(X.shape)
+    plt.contourf(X, Y, Z, levels=50, cmap='Blues')
+    plt.colorbar()
+    return plt
+
 def create_wandb_report_metrics(wandb, embeddings_red, clustering_result):
     # evaluate the clustering
     wandb.log({"silhouette_score": silhouette_score(embeddings_red, clustering_result)})
@@ -288,6 +314,11 @@ def create_wandb_report_2dviz(wandb, job_name, embeddings, embeddings_tst, proto
         tsne+title: 
         wandb.Image(viz_2d_test_prototypes(final_red, embeddings_tst.shape[0], preds, job_name))
     })
+    wandb.log({
+        "KDE - test set + clustering prototypes": 
+        wandb.Image(boundary_coverage(final_red))
+    })
+
     # umap
     final_red = alg_umap.fit_transform(emb_tst_protos.cpu().detach().numpy())
     wandb.log({
@@ -304,6 +335,10 @@ def create_wandb_report_2dviz(wandb, job_name, embeddings, embeddings_tst, proto
         tsne + title: 
         wandb.Image(viz_2d_ambiguous_prototypes(ambiguous_cl, embeddings.shape[0], clustering_result, job_name))
     })
+    wandb.log({
+        "KDE - synthetic images clustering + prototypes": 
+        wandb.Image(boundary_coverage(ambiguous_cl))
+    })
     # umap
     ambiguous_cl = alg_umap.transform(emb_amb_protos.cpu().detach().numpy())
     wandb.log({
@@ -319,6 +354,10 @@ def create_wandb_report_2dviz(wandb, job_name, embeddings, embeddings_tst, proto
     wandb.log({
         tsne+title: 
         wandb.Image(viz_2d_all(emb_all_red, embeddings_tst.shape[0], len(proto_idx), preds, clustering_result, job_name))
+    })
+    wandb.log({
+        "KDE - test set + clustering and prototypes": 
+        wandb.Image(boundary_coverage(emb_all_red))
     })
     # umap
     emb_all_red = alg_umap.transform(emb_all.cpu().detach().numpy())

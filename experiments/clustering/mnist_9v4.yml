@@ -1,14 +1,14 @@
 project: gasten_20231211
 name: mnist-9v4
-data-dir: data
-clustering-dir: data/clustering
 device: cuda:0
 batch-size: 64
 checkpoint: True
+compute-fid: False
 
-fid:
-  compute: True
-  stats-path: data/fid-stats/stats.inception.mnist.9v4.npz
+dir:
+  data: data
+  clustering: data/clustering
+  fid-stats: data/fid-stats/stats.inception.mnist.9v4.npz
 
 dataset:
   name: mnist
@@ -22,7 +22,7 @@ gasten:
     step-1: 10
     step-2: 10
   weight: 25
-  run_id: TODO
+  run_id: c1fgt7lr
 
 clustering:
   z-dim: 64
