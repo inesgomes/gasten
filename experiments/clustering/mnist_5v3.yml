@@ -17,7 +17,10 @@ dataset:
     neg: 3
 
 gasten:
-  classifier: models/mnist.5v3/cnn-2-1.2088
+  classifier: 
+  - models/mnist.5v3/cnn-1-1.27787
+  - models/mnist.5v3/cnn-2-1.2088
+  - models/mnist.5v3/cnn-4-1.45747
   epoch:
     step-1: 10
     step-2: 10

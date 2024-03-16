@@ -17,7 +17,10 @@ dataset:
     neg: 0
 
 gasten:
-  classifier: models/mnist.8v0/cnn-2-1.65905
+  classifier: 
+  - models/mnist.8v0/cnn-1-1.14128
+  - models/mnist.8v0/cnn-2-1.65905
+  - models/mnist.8v0/cnn-4-1.5362
   epoch:
     step-1: 10
     step-2: 10
