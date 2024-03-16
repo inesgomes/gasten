@@ -59,10 +59,11 @@ def get_gan_path(project, name, run_id, config_run):
     Returns:
         _type_: _description_
     """
+    classifier_name = config_run['classifier'].split(".")[0]
     # find directory whose name ends with a given id
     for dir in os.listdir(f"{os.environ['FILESDIR']}/out/{project}/{name}"):
         if dir.endswith(run_id):
-            return f"{os.environ['FILESDIR']}/out/{project}/{name}/{dir}/{config_run['classifier']}_{config_run['gasten']['weight']}_{config_run['gasten']['epoch1']}/{config_run['gasten']['epoch2']}"
+            return f"{os.environ['FILESDIR']}/out/{project}/{name}/{dir}/{classifier_name}_{config_run['gasten']['weight']}_{config_run['gasten']['epoch1']}/{config_run['gasten']['epoch2']}"
 
     raise Exception(f"Could not find directory with id {run_id}")
     
@@ -254,24 +255,24 @@ def viz_2d_all(viz_embeddings, n_tst, n_protos, preds, clustering_result, name):
     
     return plt
 
-def boundary_coverage(reduced_embeddings):
+
+#def boundary_coverage(reduced_embeddings):
     # Apply Kernel Density Estimation on the reduced embeddings
-    kde = KernelDensity(bandwidth=1.0, kernel='gaussian')
-    kde.fit(reduced_embeddings)
+    #kde = KernelDensity(bandwidth=1.0, kernel='gaussian')
+    #kde.fit(reduced_embeddings)
 
     # Evaluate the density model on a grid
-    x_min, x_max = reduced_embeddings[:, 0].min() - 1, reduced_embeddings[:, 0].max() + 1
-    y_min, y_max = reduced_embeddings[:, 1].min() - 1, reduced_embeddings[:, 1].max() + 1
-    x_grid, y_grid = np.linspace(x_min, x_max, 100), np.linspace(y_min, y_max, 100)
-    X, Y = np.meshgrid(x_grid, y_grid)
-    XY_grid = np.vstack([X.ravel(), Y.ravel()]).T
-    Z = np.exp(kde.score_samples(XY_grid))  # score_samples returns log density
+    #x_min, x_max = reduced_embeddings[:, 0].min() - 1, reduced_embeddings[:, 0].max() + 1
+    #y_min, y_max = reduced_embeddings[:, 1].min() - 1, reduced_embeddings[:, 1].max() + 1
+    #x_grid, y_grid = np.linspace(x_min, x_max, 100), np.linspace(y_min, y_max, 100)
+    #X, Y = np.meshgrid(x_grid, y_grid)
+    #XY_grid = np.vstack([X.ravel(), Y.ravel()]).T
+    #Z = np.exp(kde.score_samples(XY_grid))  # score_samples returns log density
 
     # Plot the density estimate
-    Z = Z.reshape(X.shape)
-    plt.contourf(X, Y, Z, levels=50, cmap='Blues')
-    plt.colorbar()
-    return plt
+    #Z = Z.reshape(X.shape)
+    #plt.contourf(X, Y, Z, levels=50, cmap='Blues')
+    #plt.colorbar()
 
 def create_wandb_report_metrics(wandb, embeddings_red, clustering_result):
     # evaluate the clustering
@@ -314,10 +315,6 @@ def create_wandb_report_2dviz(wandb, job_name, embeddings, embeddings_tst, proto
         tsne+title: 
         wandb.Image(viz_2d_test_prototypes(final_red, embeddings_tst.shape[0], preds, job_name))
     })
-    wandb.log({
-        "KDE - test set + clustering prototypes": 
-        wandb.Image(boundary_coverage(final_red))
-    })
 
     # umap
     final_red = alg_umap.fit_transform(emb_tst_protos.cpu().detach().numpy())
@@ -335,10 +332,6 @@ def create_wandb_report_2dviz(wandb, job_name, embeddings, embeddings_tst, proto
         tsne + title: 
         wandb.Image(viz_2d_ambiguous_prototypes(ambiguous_cl, embeddings.shape[0], clustering_result, job_name))
     })
-    wandb.log({
-        "KDE - synthetic images clustering + prototypes": 
-        wandb.Image(boundary_coverage(ambiguous_cl))
-    })
     # umap
     ambiguous_cl = alg_umap.transform(emb_amb_protos.cpu().detach().numpy())
     wandb.log({
@@ -354,10 +347,6 @@ def create_wandb_report_2dviz(wandb, job_name, embeddings, embeddings_tst, proto
     wandb.log({
         tsne+title: 
         wandb.Image(viz_2d_all(emb_all_red, embeddings_tst.shape[0], len(proto_idx), preds, clustering_result, job_name))
-    })
-    wandb.log({
-        "KDE - test set + clustering and prototypes": 
-        wandb.Image(boundary_coverage(emb_all_red))
     })
     # umap
     emb_all_red = alg_umap.transform(emb_all.cpu().detach().numpy())

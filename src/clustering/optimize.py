@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 import wandb
+import json
 from dotenv import load_dotenv
 from src.clustering.aux import parse_args, get_clustering_path, calculate_medoid, sil_score, create_wandb_report_metrics, create_wandb_report_images, create_wandb_report_2dviz, calculate_test_embeddings
 from src.utils.config import read_config_clustering
@@ -22,7 +23,7 @@ PARAM_SPACE = {
     'umap__n_neighbors': Integer(5, 25), #N2D: 20
     'umap__min_dist': Real(0.01, 0.5), #N2D: 0; 
     'umap__n_components': Integer(10, 100), #GEORGE 1, 2
-    'gmm__n_components': Integer(3, 15),
+    'gmm__n_components': Integer(3, 20),
     'gmm__covariance_type': Categorical(['full', 'diag', 'spherical']) # tied
 }
 
@@ -56,7 +57,7 @@ def hyper_tunning_clusters(config, classifier):
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type=f'step-4-clustering_optimize_{NAME}',
-                name=f"{config['gasten']['run-id']}",
+                name=f"{config['gasten']['run-id']}-{classifier_name}",
                 config=config_run)
     
     # get embeddings
@@ -67,12 +68,16 @@ def hyper_tunning_clusters(config, classifier):
     # Create GridSearchCV object with silhouette scoring 
     print("Starting optimization...")
     # TODO change n_iter=70
-    bayes_search = BayesSearchCV(PIPELINE, scoring=sil_score, search_spaces=PARAM_SPACE, cv=5, random_state=2, n_jobs=-1, verbose=1, n_iter=2)
+    bayes_search = BayesSearchCV(PIPELINE, scoring=sil_score, search_spaces=PARAM_SPACE, cv=5, random_state=2, n_jobs=-1, verbose=1, n_iter=50)
     bayes_search.fit(embeddings)
     clustering_result = bayes_search.predict(embeddings)
     # get the embeddings reduced
     embeddings_red = bayes_search.best_estimator_['umap'].transform(embeddings)
-    print(bayes_search.best_params_)
+    # save best paramters
+    wandb.log(bayes_search.best_params_)
+
+    with open(f"{path}/best_params.json", 'w') as outfile:
+        json.dump(bayes_search.best_params_, outfile)
 
     # get prototypes of each cluster
     prototypes = [calculate_medoid(embeddings_red[clustering_result == cl_label]) for cl_label in np.unique(clustering_result) if cl_label >= 0]
@@ -98,4 +103,4 @@ if __name__ == "__main__":
     args = parse_args()
     # read configs
     config = read_config_clustering(args.config)
-    hyper_tunning_clusters(config, config['gasten']['classifier'][0])
+    hyper_tunning_clusters(config, config['gasten']['classifier'][1])

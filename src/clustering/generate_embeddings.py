@@ -22,7 +22,7 @@ def generate_embeddings(config, classifier):
     run_id = config['gasten']['run-id']
 
     config_run = {
-        'classifier': classifier.split('/')[-1].split('.')[0],
+        'classifier': classifier.split('/')[-1],
         'gasten': {
             'epoch1': config['gasten']['epoch']['step-1'],
             'epoch2': config['gasten']['epoch']['step-2'],
@@ -35,12 +35,16 @@ def generate_embeddings(config, classifier):
         'generated_images': config['clustering']['fixed-noise']
     }
 
+    print(classifier)
+    print(run_id)
+    print(config_run['classifier'])
+
     wandb.init(project=config['project'],
                 dir=os.environ['FILESDIR'],
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type='step-3-amb_img_generation',
-                name=run_id,
+                name=f"{run_id}-{config_run['classifier']}",
                 config=config_run)
 
     # get GAN
@@ -131,7 +135,7 @@ def generate_embeddings(config, classifier):
     # save embeddings and images
     if config['checkpoint']:
         print("saving data...")
-        path = get_clustering_path(config['dir']['clustering'], config['gasten']['run-id'], classifier.split('/')[-1])
+        path = get_clustering_path(config['dir']['clustering'], config['gasten']['run-id'], config_run['classifier'])
         torch.save(C_emb, f"{path}/classifier_embeddings.pt")
         thr = int(config['clustering']['acd']*10)
         torch.save(images_mask, f"{path}/images_acd_{thr}.pt")
