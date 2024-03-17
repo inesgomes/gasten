@@ -105,7 +105,7 @@ CONFIG_SCHEMA_CLUSTERING = Schema({
         "acd": float,
         "n-iter": int,
         "options": [{
-            "dim-reduction": "umap",  
+            "dim-reduction": Or("umap", "tsne"),
             "clustering":  Or("hdbscan", "gmm")
         }]
     },

@@ -20,6 +20,9 @@ def saliency_maps(prototypes):
 def diversity():
     """
     TODO
+    - entropy: 
+    - average pairwise distance
+    - pixel-level (not great for few images): Calculate the standard deviation or variance for each pixel or pixel channel across all images. Higher values indicate greater diversity. 
     """
     pass
 
@@ -40,9 +43,8 @@ def load_estimator(config, classifier_name, dim_reduction, clustering, embedding
     estimator = torch.load(f"{path}/{estimator_name}.pt")
     # predict
     embeddings_cpu = embeddings.detach().cpu().numpy()
-    clustering_results = estimator.predict(embeddings_cpu)
-    # get the embeddings reduced
-    embeddings_red = estimator[dim_reduction].transform(embeddings_cpu)
+    embeddings_red = estimator[0].fit_transform(embeddings_cpu)
+    clustering_results = estimator[1].fit_predict(embeddings_red)
     return embeddings_red, clustering_results
 
 

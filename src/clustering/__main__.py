@@ -37,4 +37,3 @@ if __name__ == "__main__":
 
         # TODO calculate the classifier baseline: select from test set images with prob < 0.1 acd (randomly 10?)
 
-

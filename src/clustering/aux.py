@@ -136,7 +136,7 @@ def gmm_bic_score(estimator, X):
     """
     # Make it negative since GridSearchCV expects a score to maximize
     print(estimator)
-    return -estimator['gmm'].bic(X)
+    return -estimator[1].bic(X)
 
 def sil_score(estimator, X):
     """_summary_
@@ -148,8 +148,8 @@ def sil_score(estimator, X):
     Returns:
         _type_: _description_
     """
-    x_red = estimator['umap'].fit_transform(X)
-    labels = estimator['gmm'].fit_predict(x_red)
+    x_red = estimator[0].fit_transform(X)
+    labels = estimator[1].fit_predict(x_red)
     return silhouette_score(x_red, labels)
 
 def db_score(estimator, X):
@@ -162,8 +162,8 @@ def db_score(estimator, X):
     Returns:
         _type_: _description_
     """
-    x_red = estimator['umap'].fit_transform(X)
-    labels = estimator['gmm'].fit_predict(x_red)
+    x_red = estimator[0].fit_transform(X)
+    labels = estimator[1].fit_predict(x_red)
     return -davies_bouldin_score(x_red, labels)
 
 def viz_2d_test_prototypes(viz_embeddings, n, preds, name):

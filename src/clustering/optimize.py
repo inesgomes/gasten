@@ -16,7 +16,8 @@ from umap import UMAP
 METHODS = {
     'umap': UMAP(metric='cosine'),
     'gmm': GaussianMixture(random_state=2, covariance_type='full', init_params='k-means++'), # full -> N2D
-    'hdbscan': HDBSCAN(cluster_selection_method='leaf')
+    'tsne': TSNE(random_state=2),
+    'hdbscan': HDBSCAN(cluster_selection_method='leaf', store_centers="medoid", allow_single_cluster=True, min_samples=5)
 }
 
 PARAM_SPACE = {
@@ -24,6 +25,9 @@ PARAM_SPACE = {
         'umap__n_neighbors': Integer(5, 25), #N2D: 20
         'umap__min_dist': Real(0.01, 0.25), #N2D: 0; 
         'umap__n_components': Integer(5, 80), #GEORGE 1, 2
+    },
+    'tsne': {
+        'tsne__perplexity': Integer(5, 30),
     },
     'gmm': {
         'gmm__n_components': Integer(2, 10)
@@ -76,7 +80,6 @@ def hyper_tunning_clusters(config, classifier_name, dim_reduction, clustering, e
         (dim_reduction, METHODS[dim_reduction]),
         (clustering, METHODS[clustering])
     ])
-    
     param_space = {**PARAM_SPACE[dim_reduction], **PARAM_SPACE[clustering]}
     embeddings = embeddings_ori.detach().cpu().numpy()
 
@@ -84,9 +87,10 @@ def hyper_tunning_clusters(config, classifier_name, dim_reduction, clustering, e
     print("> Starting optimization ...")
     bayes_search = BayesSearchCV(pipeline, scoring=sil_score, search_spaces=param_space, cv=5, random_state=2, n_jobs=-1, verbose=1, n_iter=config["clustering"]["n-iter"])
     bayes_search.fit(embeddings)
-    clustering_result = bayes_search.predict(embeddings)
+
+    embeddings_red = bayes_search.best_estimator_[0].fit_transform(embeddings)
+    clustering_result = bayes_search.best_estimator_[1].fit_predict(embeddings_red)
     # get the embeddings reduced
-    embeddings_red = bayes_search.best_estimator_[dim_reduction].transform(embeddings)
 
     print("> Start reporting...")
     # save best paramters
