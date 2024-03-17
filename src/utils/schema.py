@@ -103,7 +103,13 @@ CONFIG_SCHEMA_CLUSTERING = Schema({
       "z-dim": int,
         "fixed-noise": int,
         "acd": float,
-        "dim-reduction": Or("pca", "tsne", "umap"),
-        "clustering": Or("dbscan", "hdbscan", "kmeans", "ward", "gmm")
+        "n-iter": int,
+        "options": [{
+            "dim-reduction": "umap",  
+            "clustering":  Or("hdbscan", "gmm")
+        }]
+    },
+    "prototypes": {
+        "type": [Or("medoid", "random")]
     }
 })

@@ -4,12 +4,12 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
 from sklearn.manifold import TSNE
-from sklearn.neighbors import KernelDensity
 import matplotlib.pyplot as plt
 import pandas as pd
 import torch
 from umap import UMAP
 from src.datasets import load_dataset
+import wandb
 
 
 def parse_args():
@@ -29,29 +29,12 @@ def get_clustering_path(clustering_path, run_id, classifier):
         os.makedirs(path)
     return path
 
-def get_gasten_info(config):
+def get_gan_path(config, classifier_name):
     """_summary_
 
     Args:
         config (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    classifier_name = config['train']['step-2']['classifier'][0].split(
-        '/')[-1].split('.')[0]
-    weight = config['train']['step-2']['weight'][0]
-    epoch1 = config['train']['step-2']['step-1-epochs'][0]
-    return classifier_name, weight, epoch1
-
-
-def get_gan_path(project, name, run_id, config_run):
-    """_summary_
-
-    Args:
-        config (_type_): _description_
-        run_id (_type_): _description_
-        epoch2 (_type_): _description_
+        classifier (_str_): _description_
 
     Raises:
         Exception: _description_
@@ -59,11 +42,13 @@ def get_gan_path(project, name, run_id, config_run):
     Returns:
         _type_: _description_
     """
-    classifier_name = config_run['classifier'].split(".")[0]
+    run_id = config["gasten"]["run-id"]
+    project = config["project"]
+    name = config["name"]
     # find directory whose name ends with a given id
-    for dir in os.listdir(f"{os.environ['FILESDIR']}/out/{project}/{name}"):
+    for dir in os.listdir(f"{os.environ['FILESDIR']}/out/{project}/{config['name']}"):
         if dir.endswith(run_id):
-            return f"{os.environ['FILESDIR']}/out/{project}/{name}/{dir}/{classifier_name}_{config_run['gasten']['weight']}_{config_run['gasten']['epoch1']}/{config_run['gasten']['epoch2']}"
+            return f"{os.environ['FILESDIR']}/out/{project}/{name}/{dir}/{classifier_name.split(".")[0]}_{config['gasten']['weight']}_{config['gasten']['epoch']['step-1']}/{config['gasten']['epoch']['step-2']}"
 
     raise Exception(f"Could not find directory with id {run_id}")
     
@@ -252,29 +237,9 @@ def viz_2d_all(viz_embeddings, n_tst, n_protos, preds, clustering_result, name):
     plt.scatter(x=emb_all_proto[:, 0], y=emb_all_proto[:, 1], marker='X', label='prototypes', c='black')
     plt.title(name)
     plt.legend(ncols=4, loc='upper center', bbox_to_anchor=(0.5, -0.05), fontsize='small')
-    
     return plt
 
-
-#def boundary_coverage(reduced_embeddings):
-    # Apply Kernel Density Estimation on the reduced embeddings
-    #kde = KernelDensity(bandwidth=1.0, kernel='gaussian')
-    #kde.fit(reduced_embeddings)
-
-    # Evaluate the density model on a grid
-    #x_min, x_max = reduced_embeddings[:, 0].min() - 1, reduced_embeddings[:, 0].max() + 1
-    #y_min, y_max = reduced_embeddings[:, 1].min() - 1, reduced_embeddings[:, 1].max() + 1
-    #x_grid, y_grid = np.linspace(x_min, x_max, 100), np.linspace(y_min, y_max, 100)
-    #X, Y = np.meshgrid(x_grid, y_grid)
-    #XY_grid = np.vstack([X.ravel(), Y.ravel()]).T
-    #Z = np.exp(kde.score_samples(XY_grid))  # score_samples returns log density
-
-    # Plot the density estimate
-    #Z = Z.reshape(X.shape)
-    #plt.contourf(X, Y, Z, levels=50, cmap='Blues')
-    #plt.colorbar()
-
-def create_wandb_report_metrics(wandb, embeddings_red, clustering_result):
+def create_wandb_report_metrics(embeddings_red, clustering_result):
     # evaluate the clustering
     wandb.log({"silhouette_score": silhouette_score(embeddings_red, clustering_result)})
     wandb.log({"calinski_harabasz_score": calinski_harabasz_score(embeddings_red, clustering_result)})
@@ -284,7 +249,7 @@ def create_wandb_report_metrics(wandb, embeddings_red, clustering_result):
     cluster_sizes = pd.Series(clustering_result).value_counts().reset_index()
     wandb.log({"cluster_sizes": wandb.Table(dataframe=cluster_sizes)})
 
-def create_wandb_report_images(wandb, job_name, images, clustering_result, proto_idx, device='cuda:0'):
+def create_wandb_report_images(job_name, images, clustering_result, proto_idx, device='cuda:0'):
     # save images per cluster
     for cl_label, example_no in pd.DataFrame({'cluster': clustering_result, 'image': np.arange(clustering_result.shape[0])}).groupby('cluster'):
         # get the original image positions
@@ -296,7 +261,7 @@ def create_wandb_report_images(wandb, job_name, images, clustering_result, proto
     selected_images = torch.index_select(images, 0, proto_idx)
     wandb.log({"prototypes": wandb.Image(selected_images, caption=job_name)})
 
-def create_wandb_report_2dviz(wandb, job_name, embeddings, embeddings_tst, proto_idx, preds, clustering_result):
+def create_wandb_report_2dviz(job_name, embeddings, embeddings_tst, proto_idx, preds, clustering_result):
     # TSNE visualizations - merge everything and plot
     alg_tsne = TSNE(n_components=2)
     tsne = "TSNE "
@@ -354,3 +319,70 @@ def create_wandb_report_2dviz(wandb, job_name, embeddings, embeddings_tst, proto
         umap+title: 
         wandb.Image(viz_2d_all(emb_all_red, embeddings_tst.shape[0], len(proto_idx), preds, clustering_result, job_name))
     })
+
+
+def visualize_embeddings(config, C_emb, pred_syn, embeddings_f):
+    """
+    """
+    device = config["device"]
+
+    # get test set 
+    test_set = load_dataset(config["dataset"]["name"], config["dir"]["data"], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], train=False)[0]
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=config["batch_size"], shuffle=False)
+
+    # get the test set embeddings + predictions
+    embeddings_tst_array = []
+    pred_tst_array = []
+    with torch.no_grad():
+        for data_tst in test_loader:
+            X, _ = data_tst
+            embeddings_tst_array.append(C_emb(X.to(device)))
+            pred_tst_array.append(C(X.to(device)))
+    # concatenate the arrays
+    embeddings_tst = torch.cat(embeddings_tst_array, dim=0)
+    pred_tst = torch.cat(pred_tst_array, dim=0).cpu().detach().numpy()
+
+    # prepare viz
+    print("Start visualizing embeddings...")
+    alpha = 0.7
+    cmap = 'RdYlGn'
+
+    viz_algs = {
+        'PCA': PCA(n_components=2),
+        'UMAP': UMAP(n_components=2),
+        'TSNE': TSNE(n_components=2),
+    }
+
+    embeddings_total = torch.cat([embeddings_tst, embeddings_f], dim=0).cpu().detach().numpy()
+    size_real = len(embeddings_tst)
+
+    embeddings_tst_cpu = embeddings_tst.cpu().detach().numpy()
+    embeddings_f_cpu = embeddings_f.cpu().detach().numpy()
+
+    for name, alg in viz_algs.items():
+        red_embs_syn = alg.fit_transform(embeddings_f_cpu)
+        plt.scatter(x=red_embs_syn[:, 0], y=red_embs_syn[:, 1], c=pred_syn, cmap=cmap, marker='o', vmin=0, vmax=1)
+        wandb.log({f"{name} Embeddings (gen)": wandb.Image(plt)})
+        plt.close()
+
+        if name == 'TSNE':
+            red_embs_test = alg.fit_transform(embeddings_tst_cpu)
+        else:
+            alg_tst = alg.fit(embeddings_tst_cpu)
+            red_embs_test = alg_tst.transform(embeddings_tst_cpu)
+        plt.scatter(x=red_embs_test[:, 0], y=red_embs_test[:, 1], c=pred_tst, cmap=cmap, marker='x', vmin=0, vmax=1)
+        wandb.log({f"{name} Embeddings (test set)": wandb.Image(plt)})
+        plt.close()
+
+        if name == 'TSNE':
+            red_embs_total = alg.fit_transform(embeddings_total)
+        else:
+            red_embs_total = alg_tst.transform(embeddings_total)
+        real_embs = red_embs_total[:size_real]
+        syn_embs = red_embs_total[size_real:]
+
+        plt.scatter(real_embs[:, 0], real_embs[:, 1], c=pred_tst, label='Real Data', cmap=cmap, alpha=alpha, marker='x', vmin=0, vmax=1)
+        plt.scatter(syn_embs[:, 0], syn_embs[:, 1], c=pred_syn, label='Synthetic Data', cmap=cmap, alpha=0.5, marker='o', vmin=0, vmax=1)
+        plt.legend(ncols=2, loc='upper center', bbox_to_anchor=(0.5, -0.05), fontsize='small')
+        wandb.log({f"{name} Embeddings (test set + gen)": wandb.Image(plt)})
+        plt.close()

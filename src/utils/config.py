@@ -39,5 +39,4 @@ def read_config_clustering(path):
         CONFIG_SCHEMA_CLUSTERING.validate(config)
     except SchemaError as se:
         raise se
-
     return config

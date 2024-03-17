@@ -22,14 +22,23 @@ gasten:
   - models/mnist.5v3/cnn-2-1.2088
   - models/mnist.5v3/cnn-4-1.45747
   epoch:
-    step-1: 10
+    step-1: 5
     step-2: 10
   weight: 25
-  run_id: jilca8gw
+  run-id: jilca8gw
 
 clustering:
   z-dim: 64
   fixed-noise: 20000
   acd: 0.1
-  dim-reduction: umap
-  clustering: gmm
+  n-iter: 20
+  options:
+  - dim-reduction: umap
+    clustering: gmm
+  - dim-reduction: umap
+    clustering: hdbscan
+
+prototypes:
+  type:
+  - random
+  - medoid

@@ -4,25 +4,44 @@ from src.utils.config import read_config_clustering
 from src.clustering.aux import get_gan_path, parse_args, get_clustering_path
 from src.utils.checkpoint import construct_classifier_from_checkpoint, construct_gan_from_checkpoint
 from src.metrics import fid
-from src.datasets import load_dataset
 import wandb
 import torch
 from tqdm import tqdm
 from torch.utils.data import TensorDataset, DataLoader
-from sklearn.manifold import TSNE
-from sklearn.decomposition import PCA
-from umap import UMAP
-import matplotlib.pyplot as plt
 
 
-def generate_embeddings(config, classifier):
+def load_gasten(config, classifier):
+    """
+    load information from previous step
+    """
+    device = config["device"]
+    # get classifier name
+    classifier_name = classifier.split("/")[-1]
+    # get GAN
+    gan_path = get_gan_path(config, classifier_name)
+    netG, _, _, _ = construct_gan_from_checkpoint(gan_path, device=device)
+    # get classifier
+    C, _, _, _ = construct_classifier_from_checkpoint(classifier, device=device)
+
+    return netG, C, classifier_name
+
+
+def save_gasten_images(config, classifier, images, classifier_name):
+    """
+    save embeddings and images for next step
+    """
+    path = get_clustering_path(config['dir']['clustering'], config['gasten']['run-id'], classifier_name)
+    torch.save(classifier, f"{path}/classifier_embeddings.pt")
+    thr = int(config['clustering']['acd']*10)
+    torch.save(images, f"{path}/images_acd_{thr}.pt")
+
+
+def generate_embeddings(config, netG, C, classifier_name):
 
     device = config["device"]
     batch_size = config['batch-size']
-    run_id = config['gasten']['run-id']
 
     config_run = {
-        'classifier': classifier.split('/')[-1],
         'gasten': {
             'epoch1': config['gasten']['epoch']['step-1'],
             'epoch2': config['gasten']['epoch']['step-2'],
@@ -35,46 +54,18 @@ def generate_embeddings(config, classifier):
         'generated_images': config['clustering']['fixed-noise']
     }
 
-    print(classifier)
-    print(run_id)
-    print(config_run['classifier'])
-
     wandb.init(project=config['project'],
                 dir=os.environ['FILESDIR'],
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type='step-3-amb_img_generation',
-                name=f"{run_id}-{config_run['classifier']}",
+                name=f"{config['gasten']['run-id']}-{classifier_name}",
                 config=config_run)
 
-    # get GAN
-    gan_path = get_gan_path(config['project'], config['name'], run_id, config_run)
-    netG, _, _, _ = construct_gan_from_checkpoint(gan_path, device=device)
-
-    # get classifier
-    C, _, _, _ = construct_classifier_from_checkpoint(
-        classifier, device=device)
-    C.eval()
-
     # remove last layer of classifier to get the embeddings
+    C.eval()
     C_emb = torch.nn.Sequential(*list(C.children())[0][:-1])
     C_emb.eval()
-
-    # get test set 
-    test_set = load_dataset(config["dataset"]["name"], config["dir"]["data"], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], train=False)[0]
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False)
-
-    # get the test set embeddings + predictions
-    embeddings_tst_array = []
-    pred_tst_array = []
-    with torch.no_grad():
-        for data_tst in test_loader:
-            X, _ = data_tst
-            embeddings_tst_array.append(C_emb(X.to(device)))
-            pred_tst_array.append(C(X.to(device)))
-    # concatenate the arrays
-    embeddings_tst = torch.cat(embeddings_tst_array, dim=0)
-    pred_tst = torch.cat(pred_tst_array, dim=0).cpu().detach().numpy()
 
     # prepare FID calculation
     if config['compute-fid']:
@@ -112,7 +103,6 @@ def generate_embeddings(config, classifier):
     # filter images so that ACD < threshold
     mask = (pred >= config_run['probabilities']['min']) & (pred <= config_run['probabilities']['max'])
     images_mask = images[mask]
-    pred_syn = pred[mask]
 
     # count the ambig images
     n_amb_img = images_mask.shape[0]
@@ -128,65 +118,16 @@ def generate_embeddings(config, classifier):
         wandb.log({"fid_score_ambiguous": fid_metric.finalize()})
         fid_metric.reset()
 
-    # get the embeddings for the ambiguous images
+    # get embeddings
     with torch.no_grad():
-        embeddings_f = C_emb(images_mask)
+        embeddings_ori = C_emb(images)
 
-    # save embeddings and images
-    if config['checkpoint']:
-        print("saving data...")
-        path = get_clustering_path(config['dir']['clustering'], config['gasten']['run-id'], config_run['classifier'])
-        torch.save(C_emb, f"{path}/classifier_embeddings.pt")
-        thr = int(config['clustering']['acd']*10)
-        torch.save(images_mask, f"{path}/images_acd_{thr}.pt")
-
-    # prepare viz
-    print("Start visualizing embeddings...")
-    alpha = 0.7
-    cmap = 'RdYlGn'
-
-    viz_algs = {
-        'PCA': PCA(n_components=2),
-        'UMAP': UMAP(n_components=2),
-        'TSNE': TSNE(n_components=2),
-    }
-
-    embeddings_total = torch.cat([embeddings_tst, embeddings_f], dim=0).cpu().detach().numpy()
-    size_real = len(embeddings_tst)
-
-    embeddings_tst_cpu = embeddings_tst.cpu().detach().numpy()
-    embeddings_f_cpu = embeddings_f.cpu().detach().numpy()
-
-    for name, alg in viz_algs.items():
-        red_embs_syn = alg.fit_transform(embeddings_f_cpu)
-        plt.scatter(x=red_embs_syn[:, 0], y=red_embs_syn[:, 1], c=pred_syn, cmap=cmap, marker='o', vmin=0, vmax=1)
-        wandb.log({f"{name} Embeddings (gen)": wandb.Image(plt)})
-        plt.close()
-
-        if name == 'TSNE':
-            red_embs_test = alg.fit_transform(embeddings_tst_cpu)
-        else:
-            alg_tst = alg.fit(embeddings_tst_cpu)
-            red_embs_test = alg_tst.transform(embeddings_tst_cpu)
-        plt.scatter(x=red_embs_test[:, 0], y=red_embs_test[:, 1], c=pred_tst, cmap=cmap, marker='x', vmin=0, vmax=1)
-        wandb.log({f"{name} Embeddings (test set)": wandb.Image(plt)})
-        plt.close()
-
-        if name == 'TSNE':
-            red_embs_total = alg.fit_transform(embeddings_total)
-        else:
-            red_embs_total = alg_tst.transform(embeddings_total)
-        real_embs = red_embs_total[:size_real]
-        syn_embs = red_embs_total[size_real:]
-
-        plt.scatter(real_embs[:, 0], real_embs[:, 1], c=pred_tst, label='Real Data', cmap=cmap, alpha=alpha, marker='x', vmin=0, vmax=1)
-        plt.scatter(syn_embs[:, 0], syn_embs[:, 1], c=pred_syn, label='Synthetic Data', cmap=cmap, alpha=0.5, marker='o', vmin=0, vmax=1)
-        plt.legend(ncols=2, loc='upper center', bbox_to_anchor=(0.5, -0.05), fontsize='small')
-        wandb.log({f"{name} Embeddings (test set + gen)": wandb.Image(plt)})
-        plt.close()
+    #visualize_embeddings(config, C_emb, pred[mask, embeddings_ori)
 
     # close wandb
     wandb.finish()
+
+    return C_emb, images_mask, embeddings_ori
 
 
 if __name__ == "__main__":
@@ -195,4 +136,7 @@ if __name__ == "__main__":
     args = parse_args()
     config = read_config_clustering(args.config)
     for classifier in config['gasten']['classifier']:
-        generate_embeddings(config, classifier)
+        netG, C, classifier_name = load_gasten(config, classifier)
+        C_emb, images, _ = generate_embeddings(config, netG, C, classifier_name)
+        if config["checkpoint"]:
+            save_gasten_images(config, C_emb, images, classifier_name)

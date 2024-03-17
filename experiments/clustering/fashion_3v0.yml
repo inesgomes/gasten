@@ -31,5 +31,14 @@ clustering:
   z-dim: 64
   fixed-noise: 20000
   acd: 0.1
-  dim-reduction: umap
-  clustering: gmm
+  n-iter: 20
+  options:
+  - dim-reduction: umap
+    clustering: gmm
+  - dim-reduction: umap
+    clustering: hdbscan
+
+prototypes:
+  type:
+  - random
+  - medoid
