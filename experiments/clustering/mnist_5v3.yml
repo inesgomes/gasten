@@ -38,5 +38,4 @@ clustering:
 
 prototypes:
   type:
-  - random
   - medoid

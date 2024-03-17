@@ -13,6 +13,18 @@ def save(config, C_emb, images, estimator, classifier_name, estimator_name):
     save_gasten_images(config, C_emb, images, classifier_name)
     save_estimator(config, estimator, classifier_name, estimator_name)
 
+
+def baseline(config, classifier_name, n_samples=10):
+    # load test set
+    # filter by ACD
+    # select random n_samples
+    # evaluate - same as prototypes
+    # - check images
+    # - check embeddings visualization
+    # - check metrics
+    pass
+
+
 if __name__ == "__main__":
     # setup
     load_dotenv()
@@ -28,12 +40,12 @@ if __name__ == "__main__":
             # apply clustering
             estimator, clustering_result, embeddings_reduced = hyper_tunning_clusters(config, classifier_name, opt['dim-reduction'], opt['clustering'], embeddings_ori)
             estimator_name = f"{opt['dim-reduction']}_{opt['clustering']}"
-            for typ in config['prototypes']['type']:
-                # get prototypes
-                calculate_prototypes(config, typ, classifier_name, estimator_name, images, embeddings_ori, embeddings_reduced, clustering_result)
+            # get prototypes
+            #for typ in config['prototypes']['type']: 
+                #calculate_prototypes(config, typ, classifier_name, estimator_name, images, embeddings_ori, embeddings_reduced, clustering_result)
 
-                if config["checkpoint"]:
-                    save(config, C_emb, images, estimator, classifier_name, estimator_name)
+            if config["checkpoint"]:
+                save(config, C_emb, images, estimator, classifier_name, estimator_name)
 
         # TODO calculate the classifier baseline: select from test set images with prob < 0.1 acd (randomly 10?)
 

@@ -108,4 +108,3 @@ if __name__ == "__main__":
             for typ in config['prototypes']['type']:
                 calculate_prototypes(config, typ, classifier_name, f"{opt['dim-reduction']}_{opt['clustering']}", images, embeddings_ori, embeddings_red, clustering_results)
                 
-
