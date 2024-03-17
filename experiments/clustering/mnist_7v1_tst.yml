@@ -32,7 +32,7 @@ clustering:
   n-iter: 1
   options:
   - dim-reduction: umap
-    clustering: hdbscan
+    clustering: gmm
 
 prototypes:
   type:

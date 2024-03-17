@@ -35,8 +35,6 @@ clustering:
   options:
   - dim-reduction: umap
     clustering: gmm
-  - dim-reduction: umap
-    clustering: hdbscan
 
 prototypes:
   type:
