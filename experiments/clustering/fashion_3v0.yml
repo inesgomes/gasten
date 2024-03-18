@@ -19,8 +19,6 @@ dataset:
 gasten:
   classifier: 
   - models/fashion-mnist.3v0/cnn-4-3.52011
-  - models/fashion-mnist.3v0/cnn-8-3.67780
-  - models/fashion-mnist.3v0/cnn-16-3.7723
   epoch:
     step-1: 5
     step-2: 10

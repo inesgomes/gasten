@@ -47,5 +47,10 @@ if __name__ == "__main__":
             if config["checkpoint"]:
                 save(config, C_emb, images, estimator, classifier_name, estimator_name)
 
-        # TODO calculate the classifier baseline: select from test set images with prob < 0.1 acd (randomly 10?)
+        # TODO calculate the classifier baseline: select from test set images with prob < 0.1 acd (randomly a number between 5 and 10?)
+                
+        # TODO: sensitivity analysis - no visualizations
+        # after having the hyperparamter tunning, re-run the image generation and apply the best clustering, 5 times
+        # extract the prototypes and calculate cosine similarity of the original embeddings
+        # hypothesis is that the prototypes are similar between them but different from the baseline (all-vs-all)
 

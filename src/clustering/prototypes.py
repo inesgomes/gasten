@@ -6,33 +6,37 @@ from src.utils.config import read_config_clustering
 from src.clustering.aux import parse_args, get_clustering_path, calculate_medoid, create_wandb_report_images, create_wandb_report_2dviz, calculate_test_embeddings
 from src.clustering.optimize import load_gasten_images
 import wandb
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
 
 def saliency_maps(prototypes):
     """
     TODO
     1st criteria  - interpretability
-    This function generates saliency maps for the prototypes
-    """
-    # apply captum saliency maps to the images
-    pass
-
-def diversity():
-    """
-    TODO
-    - entropy: 
-    - average pairwise distance
-    - pixel-level (not great for few images): Calculate the standard deviation or variance for each pixel or pixel channel across all images. Higher values indicate greater diversity. 
+    This function generates saliency maps for the prototypes (with captum)
     """
     pass
 
+def diversity_apd(embeddings, proto_idx):
+    """
+    2nd criteria: diversity
+    average pairwise distance: similarity among all images within a single set
+    """
+    prototypes = torch.index_select(embeddings, 0, proto_idx)
+
+    similarity_matrix = cosine_similarity(np.array(prototypes))
+    # Since the matrix includes similarity of each image with itself (1.0), we'll zero these out for a fair average
+    np.fill_diagonal(similarity_matrix, 0)
+    # Calculate the average similarity, excluding self-similarities
+    return np.sum(similarity_matrix) / (similarity_matrix.size - len(similarity_matrix))
 
 def coverage():
     """
     TODO
+    3rd criteria: coverage of the DB
     """
     pass
-
 
 def load_estimator(config, classifier_name, dim_reduction, clustering, embeddings):
     """
@@ -47,8 +51,6 @@ def load_estimator(config, classifier_name, dim_reduction, clustering, embedding
     clustering_results = estimator[1].fit_predict(embeddings_red)
     return embeddings_red, clustering_results
 
-
-# TODO: allow for multiple types of clustering
 def calculate_prototypes(config, typ, classifier_name, estimator_name, images, embeddings_ori, embeddings_red, clustering_result):
     """
     This function calculates the prototypes of each cluster
@@ -60,7 +62,7 @@ def calculate_prototypes(config, typ, classifier_name, estimator_name, images, e
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type=f'step-5-prototypes_{typ}_{estimator_name}',
-                name=f"{config['gasten']['run-id']}-{classifier_name}")
+                name=f"{config['gasten']['run-id']}-{classifier_name}_v2")
 
     # get prototypes of each cluster
     print("> Calculating prototypes ...")
@@ -82,6 +84,8 @@ def calculate_prototypes(config, typ, classifier_name, estimator_name, images, e
     proto_idx_torch = torch.tensor(proto_idx).to(device)
 
     # TODO evaluate prototypes
+    print("> Evaluating ...")
+    wandb.log({"avg_pairwise_distance": diversity_apd(embeddings_ori, proto_idx_torch)})
     
     # visualizations
     print("> Creating visualizations...")

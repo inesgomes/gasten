@@ -59,7 +59,7 @@ def generate_embeddings(config, netG, C, classifier_name):
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type='step-3-amb_img_generation',
-                name=f"{config['gasten']['run-id']}-{classifier_name}",
+                name=f"{config['gasten']['run-id']}-{classifier_name}_v2",
                 config=config_run)
 
     # remove last layer of classifier to get the embeddings
