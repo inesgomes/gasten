@@ -42,6 +42,8 @@ def generate_embeddings(config, netG, C, classifier_name):
     batch_size = config['batch-size']
 
     config_run = {
+        'step': 'image_generation',
+        'classifier_name': classifier_name,
         'gasten': {
             'epoch1': config['gasten']['epoch']['step-1'],
             'epoch2': config['gasten']['epoch']['step-2'],

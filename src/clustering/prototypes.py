@@ -137,6 +137,12 @@ def baseline_prototypes(config, classifier_name, C, C_emb, n_samples=10, iter=0)
     This function calculates the prototypes of the baseline
     """
     device = config["device"]
+
+    config_run = {
+        'step': 'baseline_prototypes',
+        'classifier_name': classifier_name,
+        'n_samples': n_samples
+    }
     # prepare wandb job
     wandb.init(project=config['project'],
                 dir=os.environ['FILESDIR'],
@@ -145,7 +151,7 @@ def baseline_prototypes(config, classifier_name, C, C_emb, n_samples=10, iter=0)
                 job_type='step-5-baseline',
                 name=f"{config['gasten']['run-id']}-{classifier_name}_{config['tag']}-{iter}",
                 tags=[config["tag"]],
-                config={"n_samples": n_samples}
+                config=config_run
             )
 
     print("> Extracting test set ...")
@@ -196,13 +202,22 @@ def calculate_prototypes(config, typ, classifier_name, estimator_name, C, C_emb,
     """
     device = config["device"]
 
+    config_run = {
+        'step': 'clustering_prototypes',
+        'classifier_name': classifier_name,
+        'eestimator_name': estimator_name,
+        'prototype_type': typ
+    }
+
     wandb.init(project=config['project'],
                 dir=os.environ['FILESDIR'],
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type=f'step-5-prototypes_{typ}_{estimator_name}',
                 name=f"{config['gasten']['run-id']}-{classifier_name}_{config['tag']}",
-                tags=[config["tag"]])
+                tags=[config["tag"]],
+                config=config_run
+                )
     
     # get prototypes of each cluster
     print("> Calculating prototypes ...")

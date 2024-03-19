@@ -105,11 +105,12 @@ def save_estimator(config, estimator, classifier_name, estimator_name):
     
 def hyper_tunning_clusters(config, classifier_name, dim_reduction, clustering, syn_embeddings_f):
    
-    config_run = {
-        'reduce_method': dim_reduction,
-        'clustering_method': clustering
-    }
     estimator_name = config_run['clustering_method']+'_'+config_run['reduce_method']
+    config_run = {
+        'step': 'clustering_optimization',
+        'classifier_name': classifier_name,
+        'estimator_name': estimator_name,
+    }
 
     wandb.init(project=config['project'],
                 dir=os.environ['FILESDIR'],
