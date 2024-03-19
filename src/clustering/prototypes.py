@@ -132,29 +132,32 @@ def load_estimator(config, classifier_name, dim_reduction, clustering, embedding
     clustering_results = estimator[1].fit_predict(embeddings_red)
     return embeddings_red, clustering_results
 
-def baseline_prototypes(config, classifier_name, C, C_emb, n_samples=10, iter=0, device="cuda:0"):
+def baseline_prototypes(config, classifier_name, C, C_emb, n_samples=10, iter=0):
     """
     This function calculates the prototypes of the baseline
     """
+    device = config["device"]
     # prepare wandb job
     wandb.init(project=config['project'],
                 dir=os.environ['FILESDIR'],
                 group=config['name'],
                 entity=os.environ['ENTITY'],
-                job_type=f'step-5-baseline',
+                job_type='step-5-baseline',
                 name=f"{config['gasten']['run-id']}-{classifier_name}-{iter}",
-                config_run={"n_samples": n_samples}
+                config={"n_samples": n_samples}
             )
 
     print("> Extracting test set ...")
-    test_set = load_dataset(config['dataset']['name'], config['dir']['data'], config['dataset']['pos'], config['dataset']['neg'], train=False)[0]
-    test_loader = torch.utils.data.DataLoader(test_set, config['batch_size'], shuffle=False)
+    test_set = load_dataset(config['dataset']['name'], config['dir']['data'], config['dataset']['binary']['pos'], config['dataset']['binary']['neg'], train=False)[0]
+    test_loader = torch.utils.data.DataLoader(test_set, config['batch-size'], shuffle=False)
     preds = []
     y_test = []
     embeddings = []
+    images = []
     with torch.no_grad():
         for data_tst in test_loader:
             X, y = data_tst
+            images.append(X.to(device))
             preds.append(C(X.to(device)))
             y_test.append(y)
             embeddings.append(C_emb(X.to(device)))
@@ -163,11 +166,12 @@ def baseline_prototypes(config, classifier_name, C, C_emb, n_samples=10, iter=0,
     preds = torch.cat(preds, dim=0).cpu().detach().numpy()
     y_test = torch.cat(y_test, dim=0).cpu().detach().numpy()
     embeddings = torch.cat(embeddings, dim=0)
+    images = torch.cat(images, dim=0)
     # filter by ACD
     print("> Selecting images ...")
     mask = (preds >= (0.5 - config["clustering"]["acd"])) & (preds <= (0.5 + config["clustering"]["acd"]))
     embeddings_mask = embeddings[mask]
-    images_mask = X[mask]
+    images_mask = images[mask]
     proto_idx_torch = torch.tensor(np.random.choice(range(0, mask.sum()), size=n_samples, replace=False)).to(device)
 
     # evaluate - same as prototypes
@@ -197,7 +201,7 @@ def calculate_prototypes(config, typ, classifier_name, estimator_name, C, images
                 entity=os.environ['ENTITY'],
                 job_type=f'step-5-prototypes_{typ}_{estimator_name}',
                 name=f"{config['gasten']['run-id']}-{classifier_name}_v2")
-
+    
     # get prototypes of each cluster
     print("> Calculating prototypes ...")
     if typ == "medoid":
@@ -227,7 +231,7 @@ def calculate_prototypes(config, typ, classifier_name, estimator_name, C, images
     embeddings_tst, y_test = calculate_test_embeddings(config["dataset"]["name"], config["dir"]['data'], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], config['batch-size'], device, C_emb)
     create_wandb_report_prototypes(estimator_name, images, proto_idx_torch)
     create_wandb_report_images(estimator_name, images, clustering_result)
-    create_wandb_report_2dviz(estimator_name, embeddings_ori, embeddings_tst, proto_idx_torch, y_test, clustering_result)
+    create_wandb_report_2dviz(estimator_name, embeddings_ori, clustering_result, proto_idx_torch, embeddings_tst, y_test)
 
     wandb.finish()
 

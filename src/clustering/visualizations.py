@@ -117,8 +117,8 @@ def prepare_2dvisualization(embeddings_tst, y_test, prototypes, alg, name, job_n
         wandb.Image(viz_2d_test_prototypes(final_red, embeddings_tst.shape[0], y_test, job_name))
     })
 
+def create_wandb_report_2dviz(job_name, embeddings, clustering_result, proto_idx, embeddings_tst, y_test):
 
-def create_wandb_report_2dviz(job_name, embeddings, embeddings_tst, proto_idx, y_test, clustering_result):
     # TSNE visualizations - merge everything and plot
     alg_tsne = TSNE(n_components=2)
     # UMAP visualizations - train on test
@@ -126,8 +126,8 @@ def create_wandb_report_2dviz(job_name, embeddings, embeddings_tst, proto_idx, y
 
     prototypes = torch.index_select(embeddings, 0, proto_idx)
 
-    prepare_2dvisualization(embeddings, y_test, prototypes, alg_tsne, "tsne", job_name)
-    prepare_2dvisualization(embeddings, y_test, prototypes, alg_umap, "umap", job_name)
+    prepare_2dvisualization(embeddings_tst, y_test, prototypes, alg_tsne, "tsne", job_name)
+    prepare_2dvisualization(embeddings_tst, y_test, prototypes, alg_umap, "umap", job_name)
                    
     # ambiguous images + prototypes
     emb_amb_protos = torch.cat([embeddings, embeddings[proto_idx]], dim=0)
@@ -152,13 +152,13 @@ def create_wandb_report_2dviz(job_name, embeddings, embeddings_tst, proto_idx, y
     emb_all_red = alg_tsne.fit_transform(emb_all.cpu().detach().numpy())
     wandb.log({
         "tsne"+title:
-        wandb.Image(viz_2d_all(emb_all_red, embeddings_tst.shape[0], len(proto_idx), preds, clustering_result, job_name))
+        wandb.Image(viz_2d_all(emb_all_red, embeddings_tst.shape[0], len(proto_idx), y_test, clustering_result, job_name))
     })
     # umap
     emb_all_red = alg_umap.transform(emb_all.cpu().detach().numpy())
     wandb.log({
         "umap"+title:
-        wandb.Image(viz_2d_all(emb_all_red, embeddings_tst.shape[0], len(proto_idx), preds, clustering_result, job_name))
+        wandb.Image(viz_2d_all(emb_all_red, embeddings_tst.shape[0], len(proto_idx), y_test, clustering_result, job_name))
     })
 
 

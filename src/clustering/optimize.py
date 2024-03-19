@@ -128,6 +128,7 @@ def hyper_tunning_clusters(config, classifier_name, dim_reduction, clustering, e
 
     # Create GridSearchCV object with silhouette scoring 
     print("> Starting optimization ...")
+    # TODO: this step is very slow -> optimize
     bayes_search = BayesSearchCV(pipeline, scoring=sil_score, search_spaces=param_space, cv=5, random_state=2, n_jobs=-1, verbose=1, n_iter=config["clustering"]["n-iter"])
     bayes_search.fit(embeddings)
 
