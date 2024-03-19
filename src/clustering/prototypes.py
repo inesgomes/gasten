@@ -3,25 +3,25 @@ from dotenv import load_dotenv
 import numpy as np
 import torch
 from src.utils.config import read_config_clustering
-from src.clustering.aux import parse_args, get_clustering_path, calculate_medoid, create_wandb_report_images, create_wandb_report_2dviz, calculate_test_embeddings
+from src.clustering.aux import parse_args, get_clustering_path, calculate_test_embeddings
+from src.clustering.visualizations import create_wandb_report_images, create_wandb_report_2dviz, create_wandb_report_prototypes, prepare_2dvisualization
 from src.clustering.optimize import load_gasten_images
 from src.clustering.generate_embeddings import load_gasten
+from src.datasets import load_dataset
 import wandb
 from sklearn.metrics.pairwise import cosine_similarity
 from captum.attr import Saliency, GradientShap
 from captum.attr import visualization as viz
-import matplotlib.pyplot as plt
+from scipy.spatial.distance import cdist
+from sklearn.manifold import TSNE
+from umap import UMAP
 
-
-def get_x_y(index, max_y):
-    return index // max_y, index % max_y
 
 def transform_original_image(image):
     return np.transpose((image.cpu().detach().numpy() / 2) + 0.5, (1, 2, 0))
 
 def saliency_maps(clf, images):
     """
-    TODO
     1st criteria  - interpretability
     This function generates saliency maps for the prototypes (with captum)
     """
@@ -68,6 +68,57 @@ def coverage():
     """
     pass
 
+def euclidean_distance(point1, point2):
+    """_summary_
+
+    Args:
+        point1 (_type_): _description_
+        point2 (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    return np.sqrt(np.sum((point1 - point2)**2))
+
+def find_closest_point(target_point, dataset):
+    """_summary_
+
+    Args:
+        target_point (_type_): _description_
+        dataset (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    #closest_point = None
+    min_distance = float('inf')
+    closest_position = -1
+
+    for i, data_point in enumerate(dataset):
+        distance = euclidean_distance(target_point, data_point)
+        if distance < min_distance:
+            min_distance = distance
+            #closest_point = data_point
+            closest_position = i
+
+    return closest_position
+
+def calculate_medoid(cluster_points):
+    """_summary_
+
+    Args:
+        cluster_points (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    # Calculate pairwise distances
+    distances = cdist(cluster_points, cluster_points, metric='euclidean')
+    # Find the index of the point with the smallest sum of distances
+    medoid_index = np.argmin(np.sum(distances, axis=0))
+    # Retrieve the medoid point
+    return cluster_points[medoid_index]
+
 def load_estimator(config, classifier_name, dim_reduction, clustering, embeddings):
     """
     """
@@ -80,6 +131,59 @@ def load_estimator(config, classifier_name, dim_reduction, clustering, embedding
     embeddings_red = estimator[0].fit_transform(embeddings_cpu)
     clustering_results = estimator[1].fit_predict(embeddings_red)
     return embeddings_red, clustering_results
+
+def baseline_prototypes(config, classifier_name, C, C_emb, n_samples=10, iter=0, device="cuda:0"):
+    """
+    This function calculates the prototypes of the baseline
+    """
+    # prepare wandb job
+    wandb.init(project=config['project'],
+                dir=os.environ['FILESDIR'],
+                group=config['name'],
+                entity=os.environ['ENTITY'],
+                job_type=f'step-5-baseline',
+                name=f"{config['gasten']['run-id']}-{classifier_name}-{iter}",
+                config_run={"n_samples": n_samples}
+            )
+
+    print("> Extracting test set ...")
+    test_set = load_dataset(config['dataset']['name'], config['dir']['data'], config['dataset']['pos'], config['dataset']['neg'], train=False)[0]
+    test_loader = torch.utils.data.DataLoader(test_set, config['batch_size'], shuffle=False)
+    preds = []
+    y_test = []
+    embeddings = []
+    with torch.no_grad():
+        for data_tst in test_loader:
+            X, y = data_tst
+            preds.append(C(X.to(device)))
+            y_test.append(y)
+            embeddings.append(C_emb(X.to(device)))
+
+    # concatenate the array
+    preds = torch.cat(preds, dim=0).cpu().detach().numpy()
+    y_test = torch.cat(y_test, dim=0).cpu().detach().numpy()
+    embeddings = torch.cat(embeddings, dim=0)
+    # filter by ACD
+    print("> Selecting images ...")
+    mask = (preds >= (0.5 - config["clustering"]["acd"])) & (preds <= (0.5 + config["clustering"]["acd"]))
+    embeddings_mask = embeddings[mask]
+    images_mask = X[mask]
+    proto_idx_torch = torch.tensor(np.random.choice(range(0, mask.sum()), size=n_samples, replace=False)).to(device)
+
+    # evaluate - same as prototypes
+    print("> Evaluating ...")
+    wandb.log({"avg_pairwise_distance": diversity_apd(embeddings_mask, proto_idx_torch)})
+    selected_images = torch.index_select(images_mask, 0, proto_idx_torch)
+    saliency_maps(C, selected_images)
+    
+    # visualizations
+    print("> Creating visualizations...")
+    create_wandb_report_prototypes(classifier_name, images_mask, proto_idx_torch)
+    prototypes = torch.index_select(embeddings_mask, 0, proto_idx_torch)
+    prepare_2dvisualization(embeddings, y_test, prototypes, TSNE(n_components=2), "tsne", "")
+    prepare_2dvisualization(embeddings, y_test, prototypes, UMAP(n_components=2), "umap", "")
+    
+    wandb.finish()
 
 def calculate_prototypes(config, typ, classifier_name, estimator_name, C, images, embeddings_ori, embeddings_red, clustering_result):
     """
@@ -113,7 +217,6 @@ def calculate_prototypes(config, typ, classifier_name, estimator_name, C, images
     proto_idx = [np.where(np.all(embeddings_red == el, axis=1))[0][0] for el in prototypes]
     proto_idx_torch = torch.tensor(proto_idx).to(device)
 
-    # TODO evaluate prototypes
     print("> Evaluating ...")
     wandb.log({"avg_pairwise_distance": diversity_apd(embeddings_ori, proto_idx_torch)})
     selected_images = torch.index_select(images, 0, proto_idx_torch)
@@ -121,9 +224,10 @@ def calculate_prototypes(config, typ, classifier_name, estimator_name, C, images
     
     # visualizations
     print("> Creating visualizations...")
-    embeddings_tst, preds = calculate_test_embeddings(config["dataset"]["name"], config["dir"]['data'], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], config['batch-size'], device, C_emb)
-    create_wandb_report_images(estimator_name, images, clustering_result, proto_idx_torch)
-    create_wandb_report_2dviz(estimator_name, embeddings_ori, embeddings_tst, proto_idx_torch, preds, clustering_result)
+    embeddings_tst, y_test = calculate_test_embeddings(config["dataset"]["name"], config["dir"]['data'], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], config['batch-size'], device, C_emb)
+    create_wandb_report_prototypes(estimator_name, images, proto_idx_torch)
+    create_wandb_report_images(estimator_name, images, clustering_result)
+    create_wandb_report_2dviz(estimator_name, embeddings_ori, embeddings_tst, proto_idx_torch, y_test, clustering_result)
 
     wandb.finish()
 

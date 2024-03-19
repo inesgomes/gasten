@@ -2,12 +2,14 @@ import os
 import torch
 import wandb
 from dotenv import load_dotenv
-from src.clustering.aux import get_clustering_path, sil_score, create_wandb_report_metrics, parse_args
+from src.clustering.aux import get_clustering_path, parse_args
+from src.clustering.visualizations import create_wandb_report_metrics
 from src.utils.config import read_config_clustering
 from sklearn.pipeline import Pipeline
 from sklearn.manifold import TSNE
 from sklearn.cluster import HDBSCAN
 from sklearn.mixture import GaussianMixture
+from sklearn.metrics import silhouette_score, davies_bouldin_score
 from skopt import BayesSearchCV
 from skopt.space import Real, Integer
 from umap import UMAP
@@ -38,6 +40,48 @@ PARAM_SPACE = {
     }
 }
 
+def gmm_bic_score(estimator, X):
+    """_summary_
+    Callable to pass to GridSearchCV that will use the BIC score.
+    Args:
+        estimator (_type_): _description_
+        X (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    # Make it negative since GridSearchCV expects a score to maximize
+    print(estimator)
+    return -estimator[1].bic(X)
+
+def sil_score(estimator, X):
+    """_summary_
+
+    Args:
+        estimator (_type_): _description_
+        X (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    x_red = estimator[0].fit_transform(X)
+    labels = estimator[1].fit_predict(x_red)
+    return silhouette_score(x_red, labels)
+
+def db_score(estimator, X):
+    """_summary_
+
+    Args:
+        estimator (_type_): _description_
+        X (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    x_red = estimator[0].fit_transform(X)
+    labels = estimator[1].fit_predict(x_red)
+    return -davies_bouldin_score(x_red, labels)
+
 def load_gasten_images(config, classifier_name):
     """
     """
@@ -51,7 +95,6 @@ def load_gasten_images(config, classifier_name):
     # get embeddings
     with torch.no_grad():
         embeddings_ori = C_emb(images)
-
     return C_emb, images, embeddings_ori
 
 def save_estimator(config, estimator, classifier_name, estimator_name):
