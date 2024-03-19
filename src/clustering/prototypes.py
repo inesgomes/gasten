@@ -1,29 +1,59 @@
+import os
 from dotenv import load_dotenv
 import numpy as np
-import os
 import torch
 from src.utils.config import read_config_clustering
 from src.clustering.aux import parse_args, get_clustering_path, calculate_medoid, create_wandb_report_images, create_wandb_report_2dviz, calculate_test_embeddings
 from src.clustering.optimize import load_gasten_images
+from src.clustering.generate_embeddings import load_gasten
 import wandb
 from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
+from captum.attr import Saliency, GradientShap
+from captum.attr import visualization as viz
+import matplotlib.pyplot as plt
 
 
-def saliency_maps(prototypes):
+def get_x_y(index, max_y):
+    return index // max_y, index % max_y
+
+def transform_original_image(image):
+    return np.transpose((image.cpu().detach().numpy() / 2) + 0.5, (1, 2, 0))
+
+def saliency_maps(clf, images):
     """
     TODO
     1st criteria  - interpretability
     This function generates saliency maps for the prototypes (with captum)
     """
-    pass
+    reference_input = torch.full(images[0].shape, -1).unsqueeze(0).to("cuda:0")
+
+    for ind, image in enumerate(images):
+        input = image.unsqueeze(0)
+        input.requires_grad = True
+        original_image = transform_original_image(image)
+        # compute gradient shap
+        with torch.no_grad():
+            feature_imp_img = GradientShap(clf).attribute(input, baselines=reference_input)
+        attr = feature_imp_img.squeeze(0).cpu().detach().numpy().reshape(28, 28, 1)
+        # visualization
+        my_viz, _ = viz.visualize_image_attr(attr, original_image, method="blended_heat_map",
+                             sign="all", show_colorbar=True, use_pyplot=False)
+        wandb.log({"gradient_shap": wandb.Image(my_viz, caption=f"prototype {ind}")})
+
+        # saliency map
+        grads = Saliency(clf).attribute(input)
+        grads = np.transpose(grads.squeeze(0).cpu().detach().numpy(), (1, 2, 0))
+        # visualization
+        my_viz, _ = viz.visualize_image_attr(grads, original_image,  method="blended_heat_map",
+                                             sign="absolute_value", show_colorbar=True, use_pyplot=False)
+        wandb.log({"saliency_maps": wandb.Image(my_viz, caption=f"prototype {ind}")})
 
 def diversity_apd(embeddings, proto_idx):
     """
     2nd criteria: diversity
     average pairwise distance: similarity among all images within a single set
     """
-    prototypes = torch.index_select(embeddings, 0, proto_idx)
+    prototypes = torch.index_select(embeddings, 0, proto_idx).cpu().detach().numpy()
 
     similarity_matrix = cosine_similarity(np.array(prototypes))
     # Since the matrix includes similarity of each image with itself (1.0), we'll zero these out for a fair average
@@ -51,7 +81,7 @@ def load_estimator(config, classifier_name, dim_reduction, clustering, embedding
     clustering_results = estimator[1].fit_predict(embeddings_red)
     return embeddings_red, clustering_results
 
-def calculate_prototypes(config, typ, classifier_name, estimator_name, images, embeddings_ori, embeddings_red, clustering_result):
+def calculate_prototypes(config, typ, classifier_name, estimator_name, C, images, embeddings_ori, embeddings_red, clustering_result):
     """
     This function calculates the prototypes of each cluster
     """
@@ -86,6 +116,8 @@ def calculate_prototypes(config, typ, classifier_name, estimator_name, images, e
     # TODO evaluate prototypes
     print("> Evaluating ...")
     wandb.log({"avg_pairwise_distance": diversity_apd(embeddings_ori, proto_idx_torch)})
+    selected_images = torch.index_select(images, 0, proto_idx_torch)
+    saliency_maps(C, selected_images)
     
     # visualizations
     print("> Creating visualizations...")
@@ -103,12 +135,12 @@ if __name__ == "__main__":
     config = read_config_clustering(args.config)
 
     for classifier in config['gasten']['classifier']:
-        classifier_name = classifier.split("/")[-1]
+        _, C, classifier_name = load_gasten(config, classifier)
         C_emb, images, embeddings_ori = load_gasten_images(config, classifier_name)
         
         for opt in config["clustering"]["options"]:
             embeddings_red, clustering_results = load_estimator(config, classifier_name, opt['dim-reduction'], opt['clustering'], embeddings_ori)
 
             for typ in config['prototypes']['type']:
-                calculate_prototypes(config, typ, classifier_name, f"{opt['dim-reduction']}_{opt['clustering']}", images, embeddings_ori, embeddings_red, clustering_results)
+                calculate_prototypes(config, typ, classifier_name, f"{opt['dim-reduction']}_{opt['clustering']}", C, images, embeddings_ori, embeddings_red, clustering_results)
                 
