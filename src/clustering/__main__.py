@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 from src.clustering.aux import parse_args
 from src.utils.config import read_config_clustering
 from src.clustering.generate_embeddings import generate_embeddings, load_gasten, save_gasten_images
-from src.clustering.optimize import hyper_tunning_clusters, save_estimator
+from src.clustering.optimize import save_estimator, hyper_tunning_clusters
 from src.clustering.prototypes import baseline_prototypes, calculate_prototypes
 
 
@@ -22,13 +22,12 @@ if __name__ == "__main__":
     config = read_config_clustering(args.config)
 
     for clf in config['gasten']['classifier']:
-        # generate images
-        netG, C, classifier_name = load_gasten(config, clf)
-        C_emb, syn_images_f, syn_embeddings_f = generate_embeddings(config, netG, C, classifier_name)
-
-        # calculate this step baseline
+        # load previous step
+        netG, C, C_emb, classifier_name = load_gasten(config, clf)
+        # calculate baseline
         baseline_prototypes(config, classifier_name, C, C_emb, 5, iter=0)
-
+        # generate images
+        syn_images_f, syn_embeddings_f = generate_embeddings(config, netG, C, C_emb, classifier_name)
         # calculate prototypes via clustering
         for opt in config['clustering']['options']:
             # apply clustering
@@ -36,7 +35,7 @@ if __name__ == "__main__":
             estimator_name = f"{opt['dim-reduction']}_{opt['clustering']}"
             # get prototypes
             for typ in config['prototypes']['type']:
-                calculate_prototypes(config, typ, classifier_name, estimator_name, C, C_emb,  syn_images_f, syn_embeddings_f, embeddings_reduced, clustering_result)
+                calculate_prototypes(config, typ, classifier_name, estimator_name, C, C_emb, syn_images_f, syn_embeddings_f, embeddings_reduced, clustering_result)
 
             if config["checkpoint"]:
                 save(config, C_emb, syn_images_f, estimator, classifier_name, estimator_name)

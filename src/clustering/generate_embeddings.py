@@ -22,8 +22,12 @@ def load_gasten(config, classifier):
     netG, _, _, _ = construct_gan_from_checkpoint(gan_path, device=device)
     # get classifier
     C, _, _, _ = construct_classifier_from_checkpoint(classifier, device=device)
+    C.eval()
+    # remove last layer of classifier to get the embeddings
+    C_emb = torch.nn.Sequential(*list(C.children())[0][:-1])
+    C_emb.eval()
 
-    return netG, C, classifier_name
+    return netG, C, C_emb, classifier_name
 
 
 def save_gasten_images(config, classifier, images, classifier_name):
@@ -36,7 +40,7 @@ def save_gasten_images(config, classifier, images, classifier_name):
     torch.save(images, f"{path}/images_acd_{thr}.pt")
 
 
-def generate_embeddings(config, netG, C, classifier_name):
+def generate_embeddings(config, netG, C, C_emb, classifier_name):
 
     device = config["device"]
     batch_size = config['batch-size']
@@ -65,11 +69,6 @@ def generate_embeddings(config, netG, C, classifier_name):
                 tags=[config["tag"]],
                 config=config_run)
 
-    # remove last layer of classifier to get the embeddings
-    C.eval()
-    C_emb = torch.nn.Sequential(*list(C.children())[0][:-1])
-    C_emb.eval()
-
     # prepare FID calculation
     if config['compute-fid']:
         mu, sigma = fid.load_statistics_from_path(config['dir']['fid-stats'])
@@ -90,11 +89,13 @@ def generate_embeddings(config, netG, C, classifier_name):
         if config['compute-fid']:
             max_size = min(idx*batch_size, config_run['generated_images'])
             fid_metric.update(batch_images, (idx*batch_size, max_size))
-            # FID for fake images
-            wandb.log({"fid_score_all": fid_metric.finalize()})
-            fid_metric.reset()
 
         images_array.append(batch_images)
+
+    # FID for fake images
+    if config['compute-fid']:
+        wandb.log({"fid_score_all": fid_metric.finalize()})
+        fid_metric.reset()
 
     # Concatenate batches into a single array
     images = torch.cat(images_array, dim=0)
@@ -130,7 +131,7 @@ def generate_embeddings(config, netG, C, classifier_name):
     # close wandb
     wandb.finish()
 
-    return C_emb, syn_images_f, syn_embeddings_f
+    return syn_images_f, syn_embeddings_f
 
 
 if __name__ == "__main__":
@@ -139,7 +140,7 @@ if __name__ == "__main__":
     args = parse_args()
     config = read_config_clustering(args.config)
     for classifier in config['gasten']['classifier']:
-        netG, C, classifier_name = load_gasten(config, classifier)
-        C_emb, images, _ = generate_embeddings(config, netG, C, classifier_name)
+        netG, C, C_emb, classifier_name = load_gasten(config, classifier)
+        images, _ = generate_embeddings(config, netG, C, C_emb, classifier_name)
         if config["checkpoint"]:
             save_gasten_images(config, C_emb, images, classifier_name)

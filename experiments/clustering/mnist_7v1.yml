@@ -4,7 +4,7 @@ tag: v3
 device: cuda:0
 batch-size: 64
 checkpoint: True
-compute-fid: False
+compute-fid: True
 
 dir:
   data: data

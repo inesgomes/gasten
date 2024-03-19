@@ -10,10 +10,10 @@ from src.clustering.generate_embeddings import load_gasten
 from src.datasets import load_dataset
 import wandb
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.manifold import TSNE
 from captum.attr import Saliency, GradientShap
 from captum.attr import visualization as viz
 from scipy.spatial.distance import cdist
-from sklearn.manifold import TSNE
 from umap import UMAP
 
 
@@ -180,6 +180,7 @@ def baseline_prototypes(config, classifier_name, C, C_emb, n_samples=10, iter=0)
     embeddings_mask = embeddings[mask]
     images_mask = images[mask]
     proto_idx_torch = torch.tensor(np.random.choice(range(0, mask.sum()), size=n_samples, replace=False)).to(device)
+    wandb.log({"n_tst_ambiguous_images": images_mask.shape[0]})
 
     # evaluate - same as prototypes
     print("> Evaluating ...")
@@ -260,8 +261,8 @@ if __name__ == "__main__":
     config = read_config_clustering(args.config)
 
     for classifier in config['gasten']['classifier']:
-        _, C, classifier_name = load_gasten(config, classifier)
-        C_emb, syn_images_f, syn_embeddings_f = load_gasten_images(config, classifier_name)
+        _, C, C_emb, classifier_name = load_gasten(config, classifier)
+        syn_images_f, syn_embeddings_f = load_gasten_images(config, C_emb, classifier_name)
         
         for opt in config["clustering"]["options"]:
             embeddings_red, clustering_results = load_estimator(config, classifier_name, opt['dim-reduction'], opt['clustering'], syn_embeddings_f)

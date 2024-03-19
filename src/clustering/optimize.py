@@ -2,6 +2,7 @@ import os
 import torch
 import wandb
 from dotenv import load_dotenv
+from src.clustering.generate_embeddings import load_gasten
 from src.clustering.aux import get_clustering_path, parse_args
 from src.clustering.visualizations import create_wandb_report_metrics
 from src.utils.config import read_config_clustering
@@ -82,20 +83,19 @@ def db_score(estimator, X):
     labels = estimator[1].fit_predict(x_red)
     return -davies_bouldin_score(x_red, labels)
 
-def load_gasten_images(config, classifier_name):
+def load_gasten_images(config, C_emb, classifier_name):
     """
     """
     print("> Load previous step ...")
     # classifier
     path = get_clustering_path(config['dir']['clustering'], config['gasten']['run-id'], classifier_name)
-    C_emb = torch.load(f"{path}/classifier_embeddings.pt")
     # images
     acd = int(config['clustering']['acd']*10)
     syn_images_filtered = torch.load(f"{path}/images_acd_{acd}.pt")
     # get embeddings
     with torch.no_grad():
-        syn_embeddings_filt = C_emb(syn_images_filt)
-    return C_emb, syn_images_filt, syn_embeddings_filt
+        syn_embeddings_filt = C_emb(syn_images_filtered)
+    return syn_images_filtered, syn_embeddings_filt
 
 def save_estimator(config, estimator, classifier_name, estimator_name):
     """
@@ -105,18 +105,17 @@ def save_estimator(config, estimator, classifier_name, estimator_name):
     
 def hyper_tunning_clusters(config, classifier_name, dim_reduction, clustering, syn_embeddings_f):
    
-    estimator_name = config_run['clustering_method']+'_'+config_run['reduce_method']
     config_run = {
         'step': 'clustering_optimization',
         'classifier_name': classifier_name,
-        'estimator_name': estimator_name,
+        'estimator_name': dim_reduction+'_'+clustering,
     }
 
     wandb.init(project=config['project'],
                 dir=os.environ['FILESDIR'],
                 group=config['name'],
                 entity=os.environ['ENTITY'],
-                job_type=f'step-4-clustering_optimize_{estimator_name}',
+                job_type=f'step-4-clustering_optimize_{config_run['estimator_name']}',
                 name=f"{config['gasten']['run-id']}-{classifier_name}_{config['tag']}",
                 tags=[config["tag"]],
                 config=config_run)
@@ -153,8 +152,8 @@ if __name__ == "__main__":
     # read configs
     config = read_config_clustering(args.config)
     for clf in config['gasten']['classifier']:
-        classifier_name = clf.split('/')[-1]
-        _, _, syn_embeddings_f = load_gasten_images(config, classifier_name)
+        _, _, C_emb, classifier_name = load_gasten(config, clf)
+        _, syn_embeddings_f = load_gasten_images(config, C_emb, classifier_name)
         for opt in config['clustering']['options']:
             estimator, _, _ = hyper_tunning_clusters(config, classifier_name, opt['dim-reduction'], opt['clustering'], syn_embeddings_f)
             if config["checkpoint"]:
