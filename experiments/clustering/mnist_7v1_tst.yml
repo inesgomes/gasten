@@ -1,5 +1,6 @@
 project: gasten_20231211
 name: mnist-7v1-tst
+tag: draft
 device: cuda:0
 batch-size: 64
 checkpoint: False
@@ -27,7 +28,7 @@ gasten:
 
 clustering:
   z-dim: 64
-  fixed-noise: 5000
+  fixed-noise: 10000
   acd: 0.1
   n-iter: 1
   options:

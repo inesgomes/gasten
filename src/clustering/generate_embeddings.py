@@ -59,7 +59,8 @@ def generate_embeddings(config, netG, C, classifier_name):
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type='step-3-amb_img_generation',
-                name=f"{config['gasten']['run-id']}-{classifier_name}_v2",
+                name=f"{config['gasten']['run-id']}-{classifier_name}_{config['tag']}",
+                tags=[config["tag"]],
                 config=config_run)
 
     # remove last layer of classifier to get the embeddings
@@ -102,15 +103,15 @@ def generate_embeddings(config, netG, C, classifier_name):
 
     # filter images so that ACD < threshold
     mask = (pred >= config_run['probabilities']['min']) & (pred <= config_run['probabilities']['max'])
-    images_mask = images[mask]
+    syn_images_f = images[mask]
 
     # count the ambig images
-    n_amb_img = images_mask.shape[0]
+    n_amb_img = syn_images_f.shape[0]
     wandb.log({"n_ambiguous_images": n_amb_img})
 
     # calculate FID score in batches - ambiguous images
     if config['compute-fid']:
-        image_loader = DataLoader(TensorDataset(images_mask), batch_size=batch_size, shuffle=False)
+        image_loader = DataLoader(TensorDataset(syn_images_f), batch_size=batch_size, shuffle=False)
         for idx, batch in enumerate(tqdm(image_loader, desc='Evaluating ambiguous fake images')):
             max_size = min(idx*batch_size, config_run['generated_images'])
             fid_metric.update(*batch, (idx*batch_size, max_size))
@@ -120,14 +121,14 @@ def generate_embeddings(config, netG, C, classifier_name):
 
     # get embeddings
     with torch.no_grad():
-        embeddings_ori = C_emb(images)
+        syn_embeddings_f = C_emb(syn_images_f)
 
-    #visualize_embeddings(config, C_emb, pred[mask, embeddings_ori)
+    #visualize_embeddings(config, C_emb, pred[mask], syn_embeddings_f)
 
     # close wandb
     wandb.finish()
 
-    return C_emb, images_mask, embeddings_ori
+    return C_emb, syn_images_f, syn_embeddings_f
 
 
 if __name__ == "__main__":

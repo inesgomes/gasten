@@ -24,24 +24,22 @@ if __name__ == "__main__":
     for clf in config['gasten']['classifier']:
         # generate images
         netG, C, classifier_name = load_gasten(config, clf)
-        C_emb, images, embeddings_ori = generate_embeddings(config, netG, C, classifier_name)
+        C_emb, syn_images_f, syn_embeddings_f = generate_embeddings(config, netG, C, classifier_name)
 
         # calculate this step baseline
         baseline_prototypes(config, classifier_name, C, C_emb, 5, iter=0)
 
         # calculate prototypes via clustering
-        
         for opt in config['clustering']['options']:
             # apply clustering
-            estimator, embeddings_reduced, clustering_result = hyper_tunning_clusters(config, classifier_name, opt['dim-reduction'], opt['clustering'], embeddings_ori)
+            estimator, embeddings_reduced, clustering_result = hyper_tunning_clusters(config, classifier_name, opt['dim-reduction'], opt['clustering'], syn_embeddings_f)
             estimator_name = f"{opt['dim-reduction']}_{opt['clustering']}"
             # get prototypes
-            for typ in config['prototypes']['type']: 
-                calculate_prototypes(config, typ, classifier_name, estimator_name, C, images, embeddings_ori, embeddings_reduced, clustering_result)
+            for typ in config['prototypes']['type']:
+                calculate_prototypes(config, typ, classifier_name, estimator_name, C, C_emb,  syn_images_f, syn_embeddings_f, embeddings_reduced, clustering_result)
 
             if config["checkpoint"]:
-                save(config, C_emb, images, estimator, classifier_name, estimator_name)
-        
+                save(config, C_emb, syn_images_f, estimator, classifier_name, estimator_name)
                 
         # TODO: sensitivity analysis - no visualizations
         # after having the hyperparamter tunning, re-run the image generation and apply the best clustering, 5 times

@@ -78,6 +78,7 @@ CONFIG_SCHEMA_CLUSTERING = Schema({
     "project": str,
     "name": str,
     Optional("device", default="cuda:0"): str,
+    Optional("tag", default="draft"): str,
     "batch-size": int,
     "checkpoint": bool,
     "compute-fid": bool,

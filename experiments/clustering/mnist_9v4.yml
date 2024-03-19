@@ -1,5 +1,6 @@
 project: gasten_20231211
 name: mnist-9v4
+tag: v3
 device: cuda:0
 batch-size: 64
 checkpoint: True

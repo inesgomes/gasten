@@ -91,11 +91,11 @@ def load_gasten_images(config, classifier_name):
     C_emb = torch.load(f"{path}/classifier_embeddings.pt")
     # images
     acd = int(config['clustering']['acd']*10)
-    images = torch.load(f"{path}/images_acd_{acd}.pt")
+    syn_images_filtered = torch.load(f"{path}/images_acd_{acd}.pt")
     # get embeddings
     with torch.no_grad():
-        embeddings_ori = C_emb(images)
-    return C_emb, images, embeddings_ori
+        syn_embeddings_filt = C_emb(syn_images_filt)
+    return C_emb, syn_images_filt, syn_embeddings_filt
 
 def save_estimator(config, estimator, classifier_name, estimator_name):
     """
@@ -103,7 +103,7 @@ def save_estimator(config, estimator, classifier_name, estimator_name):
     path = get_clustering_path(config['dir']['clustering'], config['gasten']['run-id'], classifier_name)
     torch.save(estimator, f"{path}/{estimator_name}.pt")
     
-def hyper_tunning_clusters(config, classifier_name, dim_reduction, clustering, embeddings_ori):
+def hyper_tunning_clusters(config, classifier_name, dim_reduction, clustering, syn_embeddings_f):
    
     config_run = {
         'reduce_method': dim_reduction,
@@ -116,7 +116,8 @@ def hyper_tunning_clusters(config, classifier_name, dim_reduction, clustering, e
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type=f'step-4-clustering_optimize_{estimator_name}',
-                name=f"{config['gasten']['run-id']}-{classifier_name}_v2",
+                name=f"{config['gasten']['run-id']}-{classifier_name}_{config['tag']}",
+                tags=[config["tag"]],
                 config=config_run)
     
     pipeline = Pipeline(steps=[
@@ -124,7 +125,7 @@ def hyper_tunning_clusters(config, classifier_name, dim_reduction, clustering, e
         (clustering, METHODS[clustering])
     ])
     param_space = {**PARAM_SPACE[dim_reduction], **PARAM_SPACE[clustering]}
-    embeddings = embeddings_ori.detach().cpu().numpy()
+    embeddings = syn_embeddings_f.detach().cpu().numpy()
 
     # Create GridSearchCV object with silhouette scoring 
     print("> Starting optimization ...")
@@ -152,8 +153,8 @@ if __name__ == "__main__":
     config = read_config_clustering(args.config)
     for clf in config['gasten']['classifier']:
         classifier_name = clf.split('/')[-1]
-        _, _, embeddings_ori = load_gasten_images(config, classifier_name)
+        _, _, syn_embeddings_f = load_gasten_images(config, classifier_name)
         for opt in config['clustering']['options']:
-            estimator, _, _ = hyper_tunning_clusters(config, classifier_name, opt['dim-reduction'], opt['clustering'], embeddings_ori)
+            estimator, _, _ = hyper_tunning_clusters(config, classifier_name, opt['dim-reduction'], opt['clustering'], syn_embeddings_f)
             if config["checkpoint"]:
                 save_estimator(config, estimator, classifier_name, f"{opt['dim-reduction']}_{opt['clustering']}")

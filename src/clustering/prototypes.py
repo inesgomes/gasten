@@ -20,12 +20,12 @@ from umap import UMAP
 def transform_original_image(image):
     return np.transpose((image.cpu().detach().numpy() / 2) + 0.5, (1, 2, 0))
 
-def saliency_maps(clf, images):
+def saliency_maps(clf, images, device):
     """
     1st criteria  - interpretability
     This function generates saliency maps for the prototypes (with captum)
     """
-    reference_input = torch.full(images[0].shape, -1).unsqueeze(0).to("cuda:0")
+    reference_input = torch.full(images[0].shape, -1).unsqueeze(0).to(device)
 
     for ind, image in enumerate(images):
         input = image.unsqueeze(0)
@@ -143,7 +143,8 @@ def baseline_prototypes(config, classifier_name, C, C_emb, n_samples=10, iter=0)
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type='step-5-baseline',
-                name=f"{config['gasten']['run-id']}-{classifier_name}-{iter}",
+                name=f"{config['gasten']['run-id']}-{classifier_name}_{config['tag']}-{iter}",
+                tags=[config["tag"]],
                 config={"n_samples": n_samples}
             )
 
@@ -178,7 +179,7 @@ def baseline_prototypes(config, classifier_name, C, C_emb, n_samples=10, iter=0)
     print("> Evaluating ...")
     wandb.log({"avg_pairwise_distance": diversity_apd(embeddings_mask, proto_idx_torch)})
     selected_images = torch.index_select(images_mask, 0, proto_idx_torch)
-    saliency_maps(C, selected_images)
+    saliency_maps(C, selected_images, device)
     
     # visualizations
     print("> Creating visualizations...")
@@ -189,7 +190,7 @@ def baseline_prototypes(config, classifier_name, C, C_emb, n_samples=10, iter=0)
     
     wandb.finish()
 
-def calculate_prototypes(config, typ, classifier_name, estimator_name, C, images, embeddings_ori, embeddings_red, clustering_result):
+def calculate_prototypes(config, typ, classifier_name, estimator_name, C, C_emb, syn_images, embeddings_ori, embeddings_red, clustering_result):
     """
     This function calculates the prototypes of each cluster
     """
@@ -200,7 +201,8 @@ def calculate_prototypes(config, typ, classifier_name, estimator_name, C, images
                 group=config['name'],
                 entity=os.environ['ENTITY'],
                 job_type=f'step-5-prototypes_{typ}_{estimator_name}',
-                name=f"{config['gasten']['run-id']}-{classifier_name}_v2")
+                name=f"{config['gasten']['run-id']}-{classifier_name}_{config['tag']}",
+                tags=[config["tag"]])
     
     # get prototypes of each cluster
     print("> Calculating prototypes ...")
@@ -223,14 +225,14 @@ def calculate_prototypes(config, typ, classifier_name, estimator_name, C, images
 
     print("> Evaluating ...")
     wandb.log({"avg_pairwise_distance": diversity_apd(embeddings_ori, proto_idx_torch)})
-    selected_images = torch.index_select(images, 0, proto_idx_torch)
-    saliency_maps(C, selected_images)
+    selected_images = torch.index_select(syn_images, 0, proto_idx_torch)
+    saliency_maps(C, selected_images, device)
     
     # visualizations
     print("> Creating visualizations...")
     embeddings_tst, y_test = calculate_test_embeddings(config["dataset"]["name"], config["dir"]['data'], config["dataset"]["binary"]["pos"], config["dataset"]["binary"]["neg"], config['batch-size'], device, C_emb)
-    create_wandb_report_prototypes(estimator_name, images, proto_idx_torch)
-    create_wandb_report_images(estimator_name, images, clustering_result)
+    create_wandb_report_prototypes(estimator_name, syn_images, proto_idx_torch)
+    create_wandb_report_images(estimator_name, syn_images, clustering_result)
     create_wandb_report_2dviz(estimator_name, embeddings_ori, clustering_result, proto_idx_torch, embeddings_tst, y_test)
 
     wandb.finish()
@@ -244,11 +246,11 @@ if __name__ == "__main__":
 
     for classifier in config['gasten']['classifier']:
         _, C, classifier_name = load_gasten(config, classifier)
-        C_emb, images, embeddings_ori = load_gasten_images(config, classifier_name)
+        C_emb, syn_images_f, syn_embeddings_f = load_gasten_images(config, classifier_name)
         
         for opt in config["clustering"]["options"]:
-            embeddings_red, clustering_results = load_estimator(config, classifier_name, opt['dim-reduction'], opt['clustering'], embeddings_ori)
+            embeddings_red, clustering_results = load_estimator(config, classifier_name, opt['dim-reduction'], opt['clustering'], syn_embeddings_f)
 
             for typ in config['prototypes']['type']:
-                calculate_prototypes(config, typ, classifier_name, f"{opt['dim-reduction']}_{opt['clustering']}", C, images, embeddings_ori, embeddings_red, clustering_results)
+                calculate_prototypes(config, typ, classifier_name, f"{opt['dim-reduction']}_{opt['clustering']}", C, C_emb, syn_images_f, syn_embeddings_f, embeddings_red, clustering_results)
                 
