@@ -32,6 +32,7 @@ def viz_2d_test_prototypes(viz_embeddings, n, preds, name):
     plt.scatter(x=proto_emb[:, 0], y=proto_emb[:, 1], marker='X', label='prototypes', c='black')
     plt.title(name)
     plt.legend(ncols=3, loc='upper center', bbox_to_anchor=(0.5, -0.05), fontsize='small')
+    plt.close()
     return plt
 
 def viz_2d_ambiguous_prototypes(viz_embeddings, n, clustering_result, name):
@@ -116,6 +117,7 @@ def prepare_2dvisualization(embeddings_tst, y_test, prototypes, alg, name, job_n
         name+title:
         wandb.Image(viz_2d_test_prototypes(final_red, embeddings_tst.shape[0], y_test, job_name))
     })
+    plt.close()
 
 def create_wandb_report_2dviz(job_name, embeddings, clustering_result, proto_idx, embeddings_tst, y_test):
 

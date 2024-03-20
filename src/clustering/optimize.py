@@ -20,7 +20,7 @@ METHODS = {
     'umap': UMAP(metric='cosine'),
     'gmm': GaussianMixture(random_state=2, covariance_type='full', init_params='k-means++'), # full -> N2D
     'tsne': TSNE(random_state=2),
-    'hdbscan': HDBSCAN(cluster_selection_method='leaf', store_centers="medoid", allow_single_cluster=True, min_samples=5)
+    'hdbscan': HDBSCAN(cluster_selection_method='leaf', store_centers="medoid", allow_single_cluster=False, min_samples=3)
 }
 
 PARAM_SPACE = {
@@ -33,11 +33,11 @@ PARAM_SPACE = {
         'tsne__perplexity': Integer(5, 30),
     },
     'gmm': {
-        'gmm__n_components': Integer(2, 10)
+        'gmm__n_components': Integer(3, 15)
     },
     'hdbscan': {
         'hdbscan__cluster_selection_epsilon': Real(0, 5),
-        'hdbscan__min_cluster_size': Integer(3, 10),
+        'hdbscan__min_cluster_size': Integer(3, 15),
     }
 }
 
@@ -143,7 +143,7 @@ def hyper_tunning_clusters(config, classifier_name, dim_reduction, clustering, s
     create_wandb_report_metrics(embeddings_red, clustering_result)
 
     wandb.finish()
-    return bayes_search.best_estimator_, embeddings_red, clustering_result
+    return bayes_search.best_estimator_, bayes_search.best_score_, embeddings_red, clustering_result
 
 if __name__ == "__main__":
     # setup
