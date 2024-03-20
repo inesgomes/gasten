@@ -92,13 +92,13 @@ def generate_embeddings(config, netG, C, C_emb, classifier_name):
 
         images_array.append(batch_images)
 
-    # FID for fake images
-    if config['compute-fid']:
-        wandb.log({"fid_score_all": fid_metric.finalize()})
-        fid_metric.reset()
-
     # Concatenate batches into a single array
     images = torch.cat(images_array, dim=0)
+
+    # FID for fake images
+    if config['compute-fid'] & images.shape[0]>=2048:
+        wandb.log({"fid_score_all": fid_metric.finalize()})
+        fid_metric.reset()
 
     # apply classifier to fake images
     with torch.no_grad():
@@ -113,7 +113,7 @@ def generate_embeddings(config, netG, C, C_emb, classifier_name):
     wandb.log({"n_ambiguous_images": n_amb_img})
 
     # calculate FID score in batches - ambiguous images
-    if config['compute-fid']:
+    if config['compute-fid'] & n_amb_img>=2048:
         image_loader = DataLoader(TensorDataset(syn_images_f), batch_size=batch_size, shuffle=False)
         for idx, batch in enumerate(tqdm(image_loader, desc='Evaluating ambiguous fake images')):
             max_size = min(idx*batch_size, config_run['generated_images'])

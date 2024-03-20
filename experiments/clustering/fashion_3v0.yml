@@ -30,12 +30,12 @@ gasten:
 
 clustering:
   z-dim: 64
-  fixed-noise: 10000
+  fixed-noise: 15000
   acd: 0.1
   n-iter: 20
   options:
   - dim-reduction: umap
-    clustering: hdbscan
+    clustering: gmm
   - dim-reduction: umap
     clustering: hdbscan
 prototypes:
