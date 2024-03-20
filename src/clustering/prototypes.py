@@ -206,7 +206,7 @@ def calculate_prototypes(config, typ, classifier_name, estimator_name, C, C_emb,
     config_run = {
         'step': 'clustering_prototypes',
         'classifier_name': classifier_name,
-        'eestimator_name': estimator_name,
+        'estimator_name': estimator_name,
         'prototype_type': typ
     }
 
@@ -214,7 +214,7 @@ def calculate_prototypes(config, typ, classifier_name, estimator_name, C, C_emb,
                 dir=os.environ['FILESDIR'],
                 group=config['name'],
                 entity=os.environ['ENTITY'],
-                job_type=f'step-5-prototypes_{typ}_{estimator_name}',
+                job_type=f'step-5-prototypes_{typ}',
                 name=f"{config['gasten']['run-id']}-{classifier_name}_{config['tag']}",
                 tags=[config["tag"]],
                 config=config_run

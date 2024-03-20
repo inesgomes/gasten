@@ -32,7 +32,6 @@ def viz_2d_test_prototypes(viz_embeddings, n, preds, name):
     plt.scatter(x=proto_emb[:, 0], y=proto_emb[:, 1], marker='X', label='prototypes', c='black')
     plt.title(name)
     plt.legend(ncols=3, loc='upper center', bbox_to_anchor=(0.5, -0.05), fontsize='small')
-    plt.close()
     return plt
 
 def viz_2d_ambiguous_prototypes(viz_embeddings, n, clustering_result, name):
@@ -113,9 +112,10 @@ def prepare_2dvisualization(embeddings_tst, y_test, prototypes, alg, name, job_n
 
     emb_tst_protos = torch.cat([embeddings_tst, prototypes], dim=0)
     final_red = alg.fit_transform(emb_tst_protos.cpu().detach().numpy())
+    plt = viz_2d_test_prototypes(final_red, embeddings_tst.shape[0], y_test, job_name)
     wandb.log({
         name+title:
-        wandb.Image(viz_2d_test_prototypes(final_red, embeddings_tst.shape[0], y_test, job_name))
+        wandb.Image(plt)
     })
     plt.close()
 
@@ -136,32 +136,40 @@ def create_wandb_report_2dviz(job_name, embeddings, clustering_result, proto_idx
     title = "2D embeddings - synthetic images clustering + prototypes"
     # tsne
     ambiguous_cl = alg_tsne.fit_transform(emb_amb_protos.cpu().detach().numpy())
+    plt = viz_2d_ambiguous_prototypes(ambiguous_cl, embeddings.shape[0], clustering_result, job_name)
     wandb.log({
         "tsne" + title:
-        wandb.Image(viz_2d_ambiguous_prototypes(ambiguous_cl, embeddings.shape[0], clustering_result, job_name))
+        wandb.Image(plt)
     })
+    plt.close()
     # umap
+    plt = viz_2d_ambiguous_prototypes(ambiguous_cl, embeddings.shape[0], clustering_result, job_name)
     ambiguous_cl = alg_umap.transform(emb_amb_protos.cpu().detach().numpy())
     wandb.log({
         "umap"+title: 
-        wandb.Image(viz_2d_ambiguous_prototypes(ambiguous_cl, embeddings.shape[0], clustering_result, job_name))
+        wandb.Image(plt)
     })
+    plt.close()
 
     # test set + ambiguous + prototypes
     emb_all = torch.cat([embeddings_tst, embeddings, embeddings[proto_idx]], dim=0)
     title = "2D embeddings - test set + clustering and prototypes"
     # tsne
     emb_all_red = alg_tsne.fit_transform(emb_all.cpu().detach().numpy())
+    plt = viz_2d_all(emb_all_red, embeddings_tst.shape[0], len(proto_idx), y_test, clustering_result, job_name)
     wandb.log({
         "tsne"+title:
-        wandb.Image(viz_2d_all(emb_all_red, embeddings_tst.shape[0], len(proto_idx), y_test, clustering_result, job_name))
+        wandb.Image(plt)
     })
+    plt.close()
     # umap
     emb_all_red = alg_umap.transform(emb_all.cpu().detach().numpy())
+    plt = viz_2d_all(emb_all_red, embeddings_tst.shape[0], len(proto_idx), y_test, clustering_result, job_name)
     wandb.log({
         "umap"+title:
-        wandb.Image(viz_2d_all(emb_all_red, embeddings_tst.shape[0], len(proto_idx), y_test, clustering_result, job_name))
+        wandb.Image(plt)
     })
+    plt.close()
 
 
 def visualize_embeddings(config, C_emb, pred_syn, embeddings_f):

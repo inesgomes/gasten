@@ -27,7 +27,7 @@ PARAM_SPACE = {
     'umap': {
         'umap__n_neighbors': Integer(5, 25), #N2D: 20
         'umap__min_dist': Real(0.01, 0.25), #N2D: 0; 
-        'umap__n_components': Integer(5, 80), #GEORGE 1, 2
+        'umap__n_components': Integer(5, 60), #GEORGE 1, 2 # 60 requires minimum 300 samples to cluster
     },
     'tsne': {
         'tsne__perplexity': Integer(5, 30),
@@ -37,7 +37,7 @@ PARAM_SPACE = {
     },
     'hdbscan': {
         'hdbscan__cluster_selection_epsilon': Real(0, 5),
-        'hdbscan__min_cluster_size': Integer(3, 15),
+        'hdbscan__min_cluster_size': Integer(3, 10),
     }
 }
 
