@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 import pandas as pd
 import numpy as np
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
@@ -9,6 +10,8 @@ from umap import UMAP
 import torch
 import wandb
 
+# Create a colormap from the list
+CUSTOM_CMAP = LinearSegmentedColormap.from_list("custom", ["#ffbc3f", "#0c28e9", "#ff714b", "#754200", "#ff0079", "#962400", "#358fa1", "#f9f871", "#d900b4", "#8676a9", "#7a7485", "#342c49", ])
 
 def viz_2d_test_prototypes(viz_embeddings, n, preds, name):
     """_summary_
@@ -29,7 +32,7 @@ def viz_2d_test_prototypes(viz_embeddings, n, preds, name):
     plt.figure(figsize=(9,8))
     plt.scatter(x=neg_emb[:, 0], y=neg_emb[:, 1], marker='*', label='negative (test set)', c='firebrick', alpha=0.1)
     plt.scatter(x=pos_emb[:, 0], y=pos_emb[:, 1], marker='*', label='positive (test set)', c='green', alpha=0.1)
-    plt.scatter(x=proto_emb[:, 0], y=proto_emb[:, 1], marker='X', label='prototypes', c='black')
+    plt.scatter(x=proto_emb[:, 0], y=proto_emb[:, 1], marker='x', label='prototypes', c='red')
     plt.title(name)
     plt.legend(ncols=3, loc='upper center', bbox_to_anchor=(0.5, -0.05), fontsize='small')
     return plt
@@ -49,8 +52,8 @@ def viz_2d_ambiguous_prototypes(viz_embeddings, n, clustering_result, name):
     amb_1 = viz_embeddings[:n]
     amb_2 = viz_embeddings[n:]
     plt.figure(figsize=(9,8))
-    plt.scatter(x=amb_1[:, 0], y=amb_1[:, 1], c=clustering_result, cmap='Set1', alpha=0.8, label='ambiguous images clusters', s=3)
-    plt.scatter(x=amb_2[:, 0], y=amb_2[:, 1], marker='X', label='prototypes', c='black')
+    plt.scatter(x=amb_1[:, 0], y=amb_1[:, 1], c=clustering_result, cmap=CUSTOM_CMAP, alpha=0.8, label='ambiguous clusters')
+    plt.scatter(x=amb_2[:, 0], y=amb_2[:, 1], marker='x', label='prototypes', c='red')
     plt.legend(ncols=2, bbox_to_anchor=(0, 1), loc='lower left', fontsize='small')
     plt.title(name)
     plt.legend(ncols=2, loc='upper center', bbox_to_anchor=(0.5, -0.05), fontsize='small')
@@ -77,8 +80,8 @@ def viz_2d_all(viz_embeddings, n_tst, n_protos, preds, clustering_result, name):
     plt.figure(figsize=(9,8))
     plt.scatter(x=emb_all_tst_neg[:, 0], y=emb_all_tst_neg[:, 1], alpha=0.1, label='negative (test set)', marker="*", color="firebrick")
     plt.scatter(x=emb_all_tst_pos[:, 0], y=emb_all_tst_pos[:, 1], alpha=0.1, label='positive (test set)', marker="*", color="green")
-    plt.scatter(x=emb_all_amb[:, 0], y=emb_all_amb[:, 1], c=clustering_result, cmap='Set1', alpha=0.8, label='ambiguous images clusters', s=3)
-    plt.scatter(x=emb_all_proto[:, 0], y=emb_all_proto[:, 1], marker='X', label='prototypes', c='black')
+    plt.scatter(x=emb_all_amb[:, 0], y=emb_all_amb[:, 1], c=clustering_result, cmap=CUSTOM_CMAP, label='ambiguous clusters', alpha=0.8, s=10)
+    plt.scatter(x=emb_all_proto[:, 0], y=emb_all_proto[:, 1], marker='x', label='prototypes', c='red')
     plt.title(name)
     plt.legend(ncols=4, loc='upper center', bbox_to_anchor=(0.5, -0.05), fontsize='small')
     return plt
@@ -106,70 +109,52 @@ def create_wandb_report_images(job_name, images, clustering_result, device='cuda
             selected_images = torch.index_select(images, 0, torch.tensor(list(example_no["image"])).to(device))
             wandb.log({"cluster_images": wandb.Image(selected_images, caption=f"{job_name} | Label {cl_label} | (N = {len(example_no)})")})
 
-def prepare_2dvisualization(embeddings_tst, y_test, prototypes, alg, name, job_name):
+def prepare_2dvisualization(ambiguous, embeddings, colors, prototypes, alg, name, job_name):
 
-    title = "2D embeddings - test set + clustering prototypes"
+    emb_protos = torch.cat([embeddings, prototypes], dim=0).cpu().detach().numpy()
+    final_red = alg.fit_transform(emb_protos) if name=="tsne" else alg.transform(emb_protos)
 
-    emb_tst_protos = torch.cat([embeddings_tst, prototypes], dim=0)
-    final_red = alg.fit_transform(emb_tst_protos.cpu().detach().numpy())
-    plt = viz_2d_test_prototypes(final_red, embeddings_tst.shape[0], y_test, job_name)
+    if ambiguous:
+        title = "2D embeddings - clustering + prototypes"
+        plt = viz_2d_ambiguous_prototypes(final_red, embeddings.shape[0], colors, job_name)
+    else:
+        title = "2D embeddings - test set + prototypes"
+        plt = viz_2d_test_prototypes(final_red, embeddings.shape[0], colors, job_name)
+        
+    wandb.log({
+        name + title:
+        wandb.Image(plt)
+    })
+    plt.close()
+
+def prepare_2dvisualization_all(embeddings_tst, embeddings, prototypes, y_test, clustering_result, alg, name, job_name):
+    # test set + ambiguous + prototypes
+    emb_all = torch.cat([embeddings_tst, embeddings, prototypes], dim=0).cpu().detach().numpy()
+    title = "2D embeddings - test set + clustering + prototypes"
+
+    emb_all_red = alg.fit_transform(emb_all) if name == "tsne" else alg.transform(emb_all)
+    plt = viz_2d_all(emb_all_red, embeddings_tst.shape[0], prototypes.shape[0], y_test, clustering_result, job_name)
     wandb.log({
         name+title:
         wandb.Image(plt)
     })
     plt.close()
 
+
 def create_wandb_report_2dviz(job_name, embeddings, clustering_result, proto_idx, embeddings_tst, y_test):
 
-    # TSNE visualizations - merge everything and plot
-    alg_tsne = TSNE(n_components=2)
-    # UMAP visualizations - train on test
-    alg_umap = UMAP(n_components=2).fit(embeddings_tst.cpu().detach().numpy())
-
+    algs = {
+        'tsne': TSNE(n_components=2),
+        'umap': UMAP(n_components=2).fit(embeddings_tst.cpu().detach().numpy()),
+    }
     prototypes = torch.index_select(embeddings, 0, proto_idx)
 
-    prepare_2dvisualization(embeddings_tst, y_test, prototypes, alg_tsne, "tsne", job_name)
-    prepare_2dvisualization(embeddings_tst, y_test, prototypes, alg_umap, "umap", job_name)
-                   
-    # ambiguous images + prototypes
-    emb_amb_protos = torch.cat([embeddings, embeddings[proto_idx]], dim=0)
-    title = "2D embeddings - synthetic images clustering + prototypes"
-    # tsne
-    ambiguous_cl = alg_tsne.fit_transform(emb_amb_protos.cpu().detach().numpy())
-    plt = viz_2d_ambiguous_prototypes(ambiguous_cl, embeddings.shape[0], clustering_result, job_name)
-    wandb.log({
-        "tsne" + title:
-        wandb.Image(plt)
-    })
-    plt.close()
-    # umap
-    plt = viz_2d_ambiguous_prototypes(ambiguous_cl, embeddings.shape[0], clustering_result, job_name)
-    ambiguous_cl = alg_umap.transform(emb_amb_protos.cpu().detach().numpy())
-    wandb.log({
-        "umap"+title: 
-        wandb.Image(plt)
-    })
-    plt.close()
-
-    # test set + ambiguous + prototypes
-    emb_all = torch.cat([embeddings_tst, embeddings, embeddings[proto_idx]], dim=0)
-    title = "2D embeddings - test set + clustering and prototypes"
-    # tsne
-    emb_all_red = alg_tsne.fit_transform(emb_all.cpu().detach().numpy())
-    plt = viz_2d_all(emb_all_red, embeddings_tst.shape[0], len(proto_idx), y_test, clustering_result, job_name)
-    wandb.log({
-        "tsne"+title:
-        wandb.Image(plt)
-    })
-    plt.close()
-    # umap
-    emb_all_red = alg_umap.transform(emb_all.cpu().detach().numpy())
-    plt = viz_2d_all(emb_all_red, embeddings_tst.shape[0], len(proto_idx), y_test, clustering_result, job_name)
-    wandb.log({
-        "umap"+title:
-        wandb.Image(plt)
-    })
-    plt.close()
+    for name, alg in algs.items():
+        prepare_2dvisualization(False, embeddings_tst, y_test, prototypes, alg, name, job_name)
+        if embeddings.shape[0]>30:
+            prepare_2dvisualization(True, embeddings, clustering_result, prototypes, alg, name, job_name)
+        prepare_2dvisualization_all(embeddings_tst, embeddings, prototypes, y_test, clustering_result, alg, name, job_name)
+        
 
 
 def visualize_embeddings(config, C_emb, pred_syn, embeddings_f):

@@ -23,8 +23,8 @@ gasten:
   - models/fashion-mnist.5v7/cnn-8-3.75424
   - models/fashion-mnist.5v7/cnn-16-3.86682
   epoch:
-    step-1: 5
-    step-2: 10
+    step-1: 10
+    step-2: 15
   weight: 25
   run-id: hyvj1lyo
 

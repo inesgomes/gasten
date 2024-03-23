@@ -19,7 +19,7 @@ dataset:
 
 gasten:
   classifier: 
-  - models/mnist.7v1/cnn-2-1.37197
+  - models/mnist.7v1/cnn-4-1.3664
   epoch:
     step-1: 5
     step-2: 10
@@ -28,12 +28,10 @@ gasten:
 
 clustering:
   z-dim: 64
-  fixed-noise: 10000
+  fixed-noise: 15000
   acd: 0.1
   n-iter: 1
   options:
-  - dim-reduction: umap
-    clustering: hdbscan
   - dim-reduction: umap
     clustering: gmm
 

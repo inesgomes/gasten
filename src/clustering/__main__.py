@@ -13,7 +13,7 @@ def save(config, C_emb, images, estimator, classifier_name, estimator_name):
     print("> Save ...")
     save_gasten_images(config, C_emb, images, classifier_name)
     save_estimator(config, estimator, classifier_name, estimator_name)
-   
+
 
 if __name__ == "__main__":
     # setup
@@ -27,6 +27,7 @@ if __name__ == "__main__":
         netG, C, C_emb, classifier_name = load_gasten(config, clf)
         # calculate baseline
         baseline_prototypes(config, classifier_name, C, C_emb, 5, iter=0)
+        
         # generate images
         syn_images_f, syn_embeddings_f = generate_embeddings(config, netG, C, C_emb, classifier_name)
         # cluster the synthetic data, and select best estimator
@@ -50,7 +51,7 @@ if __name__ == "__main__":
 
             if config["checkpoint"]:
                 save(config, C_emb, syn_images_f, best_estimator, classifier_name, estimator_name)
-                
+  
         # TODO: sensitivity analysis - no visualizations
         # after having the hyperparamter tunning, re-run the image generation and apply the best clustering, 5 times
         # extract the prototypes and calculate cosine similarity of the original embeddings

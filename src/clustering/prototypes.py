@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from src.utils.config import read_config_clustering
 from src.clustering.aux import parse_args, get_clustering_path, calculate_test_embeddings
-from src.clustering.visualizations import create_wandb_report_images, create_wandb_report_2dviz, create_wandb_report_prototypes, prepare_2dvisualization
+from src.clustering.visualizations import create_wandb_report_images, create_wandb_report_2dviz, create_wandb_report_prototypes, prepare_2dvisualization, prepare_2dvisualization_all
 from src.clustering.optimize import load_gasten_images
 from src.clustering.generate_embeddings import load_gasten
 from src.datasets import load_dataset
@@ -191,9 +191,11 @@ def baseline_prototypes(config, classifier_name, C, C_emb, n_samples=10, iter=0)
     # visualizations
     print("> Creating visualizations...")
     create_wandb_report_prototypes(classifier_name, images_mask, proto_idx_torch)
-    prototypes = torch.index_select(embeddings_mask, 0, proto_idx_torch)
-    prepare_2dvisualization(embeddings, y_test, prototypes, TSNE(n_components=2), "tsne", "")
-    prepare_2dvisualization(embeddings, y_test, prototypes, UMAP(n_components=2), "umap", "")
+    create_wandb_report_2dviz("baseline", embeddings_mask, np.ones(mask.sum()), proto_idx_torch, embeddings, y_test)
+
+    # prototypes = torch.index_select(embeddings_mask, 0, proto_idx_torch)
+    #prepare_2dvisualization(False, embeddings, y_test, prototypes, TSNE(n_components=2), "tsne", "")
+    #prepare_2dvisualization(False, embeddings, y_test, prototypes, UMAP(n_components=2), "umap", "")
     
     wandb.finish()
 
