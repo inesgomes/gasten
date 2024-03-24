@@ -32,7 +32,7 @@ HOMEDIR and FILESDIR are equal if our repository and file directory are the same
 
 **Train binary classifiers**:
 
-`python src/gen_classifiers.py --dataset mnist --pos 7 --neg 1 --nf 1,2,4 --epochs 1`
+1. select the dataset subset, CNN number of filters and number of epochs for training: `python -m src.classifier --dataset mnist --pos 7 --neg 1 --nf 1,2,4 --epochs 1`
 
 ### Step 1: Synthetic Data Generation
 
@@ -47,11 +47,10 @@ Paper: [GASTeN: Generative Adversarial Stress Test Networks](https://link.spring
     - select the experiment, e.g. `mnist_7v1.yml`
     - change parameters as needed
     - make sure to update the classifier name in `train[step-2][classifier]`
-3. Prepare FID score calculation for all pairs of numbers: `python src/gen_pairwise_inception.py`
-    - optionally select only one subset: `python -m src.metrics.fid --dataset mnist --pos 7 --neg 1`
-4. create test noise: `python src/gen_test_noise.py --nz 2048 --z-dim 64`
-   - nz minimum value must be 2048 for FID calculation: 
-5. Run GASTeN to create images in the boundary between two classes:  `python -m src --config experiments/original/mnist_7v1.yml`
+3. Prepare FID score calculation for a dataset subset: `python -m src.metrics.fid --dataset mnist --pos 7 --neg 1`
+4. create test noise: `python -m src.utils.gen_test_noise.py --nz 2048 --z-dim 64`
+   - nz minimum value must be 2048 for FID calculation
+5. Run GASTeN to create images in the boundary between two classes:  `python -m src.gan --config experiments/original/mnist_7v1.yml`
     - the *original* folder contains the GASTeN paper experiments
 
 ### Step 2 & 3: Finding Patterns in Ambiguity & Prototype Selection
