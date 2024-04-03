@@ -43,14 +43,14 @@ Paper: [GASTeN: Generative Adversarial Stress Test Networks](https://link.spring
 **Train GASTeN**:
 
 1. Prepare configuration file:
-    - go to `experiments/original`
+    - go to `experiments/gasten`
     - select the experiment, e.g. `mnist_7v1.yml`
     - change parameters as needed
     - make sure to update the classifier name in `train[step-2][classifier]`
 3. Prepare FID score calculation for a dataset subset: `python -m src.metrics.fid --dataset mnist --pos 7 --neg 1`
 4. create test noise: `python -m src.utils.gen_test_noise.py --nz 2048 --z-dim 64`
    - nz minimum value must be 2048 for FID calculation
-5. Run GASTeN to create images in the boundary between two classes:  `python -m src.gan --config experiments/original/mnist_7v1.yml`
+5. Run GASTeN to create images in the boundary between two classes:  `python -m src.gan --config experiments/gasten/mnist_7v1.yml`
     - the *original* folder contains the GASTeN paper experiments
 
 ### Step 2 & 3: Finding Patterns in Ambiguity & Prototype Selection
@@ -63,13 +63,13 @@ This module includes experiments to deep clustering and find prototypes.
    - change parameters as needed, but take into consideration the following:
          - *run_id* is based on previously trained GASTeN. Check run_id in wandb (as job_name).
          - select the GAN epoch that seems to have lower FID and ACD scores
-2. Run: `python -m src src.clustering --config experiments/patterns/mnist_7v1.yml`
+2. Run: `python -m src src.clustering --config experiments/clustering/mnist_7v1.yml`
 
 It is possible to run the experiments sequentially:
 
-1. generate synthetic images and embeddings: `python -m src.clustering.generate_embeddings --config experiments/patterns/mnist_7v1.yml`
-2. clustering hyperparameter optimization: `python -m src.clustering.optimize --config experiments/patterns/mnist_7v1.yml`
-3. prototype selection: `python -m src.clustering.prototypes --config experiments/patterns/mnist_7v1.yml`
+1. generate synthetic images and embeddings: `python -m src.clustering.generate_embeddings --config experiments/clustering/mnist_7v1.yml`
+2. clustering hyperparameter optimization: `python -m src.clustering.optimize --config experiments/clustering/mnist_7v1.yml`
+3. prototype selection: `python -m src.clustering.prototypes --config experiments/clustering/mnist_7v1.yml`
 
 
 
