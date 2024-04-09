@@ -49,7 +49,7 @@ def evaluate(C, device, dataloader, criterion, acc_fun, verbose=True, desc='Vali
     return acc.item(), loss
 
 
-def train(C, opt, crit, train_loader, val_loader, test_loader, acc_fun, args, name, model_params, device):
+def train(C, opt, crit, train_loader, val_loader, test_loader, acc_fun, args, out_dir, name, model_params, device):
     stats = {
         'best_loss': float('inf'),
         'best_epoch': 0,
@@ -115,7 +115,7 @@ def train(C, opt, crit, train_loader, val_loader, test_loader, acc_fun, args, na
             stats['early_stop_tracker'] = 0
 
             cp_path = checkpoint(C, name, model_params,
-                                 stats, args, output_dir=args.out_dir)
+                                 stats, args, output_dir=out_dir)
             print("")
             print(' > Saved checkpoint to {}'.format(cp_path))
         else:
@@ -227,7 +227,7 @@ def main():
 
     stats, cp_path = \
         train(C, opt, criterion, train_loader, val_loader,
-              test_loader, acc_fun, args, name, model_params, device)
+              test_loader, acc_fun, args, out_dir, name, model_params, device)
 
     best_C = construct_classifier_from_checkpoint(cp_path, device=device)[0]
     print("\n")
